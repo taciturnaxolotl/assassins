@@ -13,7 +13,7 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import * as Alert from '$lib/components/ui/alert';
 	import { game } from '$lib/game/store.svelte';
-	import { CLASS, DAYS, WEEK, dayOf, place } from '$lib/game/time';
+	import { CLASS, DAYS, WEEK, dayOf, nextClassFrom, place, until } from '$lib/game/time';
 	import type { Player } from '$lib/game/types';
 
 	let { player, wide = false }: { player: Player; wide?: boolean } = $props();
@@ -37,7 +37,9 @@
 		[
 			...player.photos.map((s) => ({ shot: s, from: 'posted' })),
 			...(player.avatar ? [{ shot: player.avatar, from: 'profile' }] : []),
-			...(player.extra ?? []).map((s) => ({ shot: s, from: 'the kill' })),
+			// The caption rides on the photo now: a snipe says snipe, a death
+			// photograph says the kill.
+			...(player.extra ?? []).map((s) => ({ shot: s, from: s.label ?? 'added' })),
 			...(player.gallery ?? []).map((s) => ({ shot: s, from: 'gallery' })),
 			...(player.directoryPhoto ? [{ shot: player.directoryPhoto, from: 'directory' }] : [])
 		]
@@ -61,6 +63,16 @@
 		return live && live !== g.chain.assigned[player.gmId] ? live : null;
 	});
 
+	// One shape for both readers: an admin has the whole timetable, a player has
+	// the single fact the server worked out for them. Either way it is a course,
+	// a countdown, and a place.
+	const nextUp = $derived(
+		player.schedule?.length ? nextClassFrom(player.schedule, g.now) : (player.next ?? null)
+	);
+	const nextText = $derived(
+		nextUp ? `${nextUp.label} · ${until(nextUp.day, nextUp.from, g.now)} · ${nextUp.place}` : null
+	);
+
 	const vitals = $derived(
 		[
 			['Class', CLASS[player.class ?? ''] ?? null],
@@ -73,7 +85,7 @@
 					.map((m) => `${m.major} ${m.score}%`)
 					.join(' · ') || null
 			],
-			['Next class', g.dead(player.gmId) ? null : g.next(player)],
+			['Next class', g.dead(player.gmId) ? null : nextText],
 			['Student id', player.id ?? null]
 		].filter(([, v]) => v) as [string, string][]
 	);

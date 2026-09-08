@@ -1,4 +1,8 @@
-export type Shot = { url: string; rotate: number };
+export type Shot = { url: string; rotate: number; label?: string };
+
+// The soonest class from now, computed on the server for the public roster,
+// which is not given a timetable to work it out from.
+export type NextClass = { label: string; place: string; day: number; from: number };
 
 export type Meeting = {
 	days: number[];
@@ -44,6 +48,7 @@ export type Player = {
 	directoryPhoto?: Shot | null;
 	majors?: { major: string; score: number }[];
 	schedule?: Course[];
+	next?: NextClass | null;
 };
 
 export type Campus = {

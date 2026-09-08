@@ -1,4 +1,4 @@
-import type { Course, Meeting, Player } from './types';
+import type { Course, Meeting, NextClass, Player } from './types';
 
 export const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const WEEK = [1, 2, 3, 4, 5];
@@ -47,6 +47,50 @@ export function flatten(players: Player[]): Slot[] {
 // with no error to show for it. Ask for the id and the question goes away.
 export const dayOf = (slots: Slot[], p: Player, day: number) =>
 	slots.filter((s) => s.p.gmId === p.gmId && s.day === day).sort((a, b) => a.from - b.from);
+
+// The soonest meeting from `now`, as its parts rather than a sentence, so the
+// server can hand it to a page that will draw its own countdown. Shares the
+// week-ahead search with nextClass below.
+// A next-class time said the way a person would: a countdown when it is close,
+// a day and a time when it is not.
+export function until(day: number, from: number, now: Date): string {
+	const nowMin = now.getHours() * 60 + now.getMinutes();
+	const today = now.getDay();
+	if (day === today) {
+		const d = from - nowMin;
+		if (d <= 0) return 'now';
+		if (d < 60) return `in ${d} min`;
+		if (d < 240) return `in ${Math.floor(d / 60)}h ${d % 60}m`;
+		return hhmm(from);
+	}
+	if (day === (today + 1) % 7) return `tomorrow ${hhmm(from)}`;
+	return `${DAYS[day]} ${hhmm(from)}`;
+}
+
+export function nextClassFrom(schedule: Course[], now: Date): NextClass | null {
+	const slots: { c: Course; m: Meeting; day: number; from: number }[] = [];
+	for (const c of schedule)
+		for (const m of c.meets ?? []) {
+			const from = minutes(m.start);
+			if (from == null) continue;
+			for (const d of m.days) slots.push({ c, m, day: d, from });
+		}
+	const mins = now.getHours() * 60 + now.getMinutes();
+	for (let ahead = 0; ahead < 7; ahead++) {
+		const day = (now.getDay() + ahead) % 7;
+		const found = slots
+			.filter((s) => s.day === day && (ahead > 0 || s.from > mins))
+			.sort((a, b) => a.from - b.from)[0];
+		if (found)
+			return {
+				label: found.c.code || found.c.section,
+				place: place(found.m),
+				day,
+				from: found.from
+			};
+	}
+	return null;
+}
 
 export function nextClass(slots: Slot[], p: Player, now = new Date()) {
 	const mins = now.getHours() * 60 + now.getMinutes();

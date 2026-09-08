@@ -15,6 +15,7 @@ import type { DB } from './db';
 import { schema } from './db';
 import type { Access } from './access';
 import type { Campus, Player, Tier } from '$lib/game/types';
+import { nextClassFrom } from '$lib/game/time';
 
 const P = schema.player;
 
@@ -43,15 +44,22 @@ export type RosterCard = {
 	class: string | null;
 	dorm: string | null;
 	majors: Player['majors'];
+	extra: Player['photos'];
+	next: Player['next'];
 };
 
 /**
- * Photographs added since the join was built, by player.
+ * Photographs added since the join was built, by player, each labelled with
+ * where it came from.
  *
  * They live in their own table because `player` is deleted and rewritten every
  * time the join runs, so anything filed during the game would last until the
- * next rebuild and no longer.
+ * next rebuild and no longer. The source becomes the caption: a snipe is a
+ * snipe, a death photograph is the kill.
  */
+const captionFor = (source: string) =>
+	source === 'snipes topic' ? 'snipe' : source === 'kills topic' ? 'the kill' : 'added';
+
 async function extras(db: DB, gmIds: string[]) {
 	if (!gmIds.length) return new Map<string, Player['photos']>();
 	const rows = await db
@@ -60,7 +68,10 @@ async function extras(db: DB, gmIds: string[]) {
 		.where(inArray(schema.extraPhoto.gmId, gmIds));
 	const out = new Map<string, Player['photos']>();
 	for (const r of rows)
-		out.set(r.gmId, [...(out.get(r.gmId) ?? []), { url: r.url, rotate: 0 }]);
+		out.set(r.gmId, [
+			...(out.get(r.gmId) ?? []),
+			{ url: r.url, rotate: 0, label: captionFor(r.source) }
+		]);
 	return out;
 }
 
@@ -92,17 +103,28 @@ const rehydrate = (r: typeof P.$inferSelect): Player => ({
 	schedule: r.schedule ?? []
 });
 
-/** The public half of everybody, with the photographs filed during the game. */
+/**
+ * The public half of everybody: the card columns, the photographs filed during
+ * the game, and the one derived fact from the timetable that is public — when
+ * their next class is. The schedule itself is read to work that out and then
+ * dropped; only `next` leaves the server.
+ */
 export async function roster(db: DB): Promise<RosterCard[]> {
-	const [rows, extra] = await Promise.all([
-		db.select(CARD).from(P).orderBy(P.name),
+	const [rows, all] = await Promise.all([
+		db.select({ ...CARD, schedule: P.schedule }).from(P).orderBy(P.name),
 		db.select().from(schema.extraPhoto)
 	]);
 	const found = new Map<string, Player['photos']>();
-	for (const r of extra) found.set(r.gmId, [...(found.get(r.gmId) ?? []), { url: r.url, rotate: 0 }]);
-	return rows.map((r) => ({
-		...(r as RosterCard),
-		photos: [...(r.photos ?? []), ...(found.get(r.gmId) ?? [])]
+	for (const r of all)
+		found.set(r.gmId, [
+			...(found.get(r.gmId) ?? []),
+			{ url: r.url, rotate: 0, label: captionFor(r.source) }
+		]);
+	const at = new Date();
+	return rows.map(({ schedule, ...card }) => ({
+		...(card as RosterCard),
+		extra: found.get(card.gmId) ?? [],
+		next: nextClassFrom(schedule ?? [], at)
 	}));
 }
 
@@ -114,7 +136,11 @@ export const everyone = async (db: DB) => {
 		db.select().from(schema.extraPhoto)
 	]);
 	const found = new Map<string, Player['photos']>();
-	for (const r of extra) found.set(r.gmId, [...(found.get(r.gmId) ?? []), { url: r.url, rotate: 0 }]);
+	for (const r of extra)
+		found.set(r.gmId, [
+			...(found.get(r.gmId) ?? []),
+			{ url: r.url, rotate: 0, label: captionFor(r.source) }
+		]);
 	return rows
 		.map(rehydrate)
 		.map((p) => (found.has(p.gmId) ? { ...p, extra: found.get(p.gmId) } : p));
