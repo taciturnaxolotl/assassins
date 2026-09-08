@@ -1,30 +1,12 @@
 <script lang="ts">
-	// What a free account sees where a dossier would be.
-	//
-	// The counts are real and about them; the map and the week below are not,
-	// and are not theirs. Showing invented classes under a real person's name
-	// would be worse than showing nothing — somebody un-blurs it in devtools and
-	// goes to a building that student has never been in. So the sample is
-	// openly a sample, and says so.
+	// The fallback when there is no sample to draw — no campus, or a mark the
+	// build never resolved. Everything on it is true and about them; it just
+	// cannot show the shape of the file the way the frosted dossier does.
 	import { buttonVariants } from '$lib/components/ui/button';
 	import * as Table from '$lib/components/ui/table';
-	import CampusMap from './CampusMap.svelte';
-	import WeekGrid from './WeekGrid.svelte';
 	import type { Teaser } from '$lib/server/data';
-	import type { Player } from '$lib/game/types';
 
-	let {
-		name,
-		teaser,
-		sample = null,
-		day = 1
-	}: {
-		name: string;
-		teaser?: Teaser | null;
-		/** An invented day, seeded so it holds still. Never the real one. */
-		sample?: Player | null;
-		day?: number;
-	} = $props();
+	let { name, teaser }: { name: string; teaser?: Teaser | null } = $props();
 
 	const rows = $derived(
 		teaser
@@ -61,32 +43,12 @@
 							<Table.Cell class="text-right">yes</Table.Cell>
 						</Table.Row>
 					{/if}
-					{#if teaser?.knowsHometown}
-						<Table.Row>
-							<Table.Cell class="text-[var(--color-faint)]">Hometown</Table.Cell>
-							<Table.Cell class="text-right">yes</Table.Cell>
-						</Table.Row>
-					{/if}
 				</Table.Body>
 			</Table.Root>
 		</div>
 	{/if}
 
 	<a class={buttonVariants({ size: 'lg' })} href="/upgrade">Unlock the fancy tools</a>
-
-	{#if sample}
-		<div class="preview" aria-hidden="true">
-			<div class="veil">
-				<span>Sample, not theirs</span>
-			</div>
-			<div class="frosted">
-				<h3 class="rule">Their route across campus</h3>
-				<CampusMap people={[sample]} {day} compact />
-				<h3 class="rule">Their week</h3>
-				<WeekGrid player={sample} px={0.7} />
-			</div>
-		</div>
-	{/if}
 </div>
 
 <style>
@@ -102,42 +64,5 @@
 	.tally {
 		max-width: 340px;
 		margin-bottom: 22px;
-	}
-
-	.preview {
-		position: relative;
-		margin-top: 34px;
-		border-top: 1px solid var(--color-line);
-		padding-top: 20px;
-		/* Nothing in here is real, so nothing in here is reachable. */
-		pointer-events: none;
-		user-select: none;
-		overflow: hidden;
-	}
-	.frosted {
-		filter: blur(7px) saturate(0.7);
-		opacity: 0.55;
-	}
-	.veil {
-		position: absolute;
-		inset: 20px 0 0;
-		z-index: 1;
-		display: grid;
-		place-items: center;
-		background: linear-gradient(
-			to bottom,
-			color-mix(in oklch, var(--color-bg) 55%, transparent),
-			var(--color-bg)
-		);
-	}
-	.veil span {
-		font: 400 10px/1 var(--font-mono);
-		letter-spacing: 0.2em;
-		text-transform: uppercase;
-		color: var(--color-faint);
-		border: 1px solid var(--color-line);
-		background: var(--color-bg);
-		padding: 6px 12px;
-		border-radius: 999px;
 	}
 </style>

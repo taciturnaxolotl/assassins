@@ -9,17 +9,37 @@
 	import Itinerary from './Itinerary.svelte';
 	import WeekGrid from './WeekGrid.svelte';
 	import PlayerPicker from './PlayerPicker.svelte';
-	import { Button } from '$lib/components/ui/button';
+	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import * as Alert from '$lib/components/ui/alert';
 	import { game } from '$lib/game/store.svelte';
-	import { CLASS, DAYS, place } from '$lib/game/time';
+	import { CLASS, DAYS, WEEK, dayOf, place } from '$lib/game/time';
 	import type { Player } from '$lib/game/types';
 
-	let { player, wide = false }: { player: Player; wide?: boolean } = $props();
+	let {
+		player,
+		wide = false,
+		preview = null
+	}: {
+		player: Player;
+		wide?: boolean;
+		/**
+		 * Show the real layout with invented contents behind frosted glass. The
+		 * name and the first photograph are real; everything under them is not,
+		 * and is not this person's. `why` is what it takes to see the real thing.
+		 */
+		preview?: { why: string; cta?: { label: string; href: string } } | null;
+	} = $props();
 
 	const g = game();
-	let day = $state(new Date().getDay());
+	// Today, unless they have nothing today — a dossier that opens on a blank
+	// Saturday is a worse first look than one that opens on a day they move.
+	const busiest = () => {
+		const today = new Date().getDay();
+		if (dayOf(g.slots, player, today).length) return today;
+		return WEEK.find((d) => dayOf(g.slots, player, d).length) ?? today;
+	};
+	let day = $state(busiest());
 	let err = $state('');
 	let busy = $state(false);
 
@@ -79,7 +99,7 @@
 	<div class="head">
 		{#if shots.length}
 			<div class="reel">
-				{#each shots as s, i (i)}
+				{#each preview ? shots.slice(0, 1) : shots as s, i (i)}
 					<figure class="frame">
 						<Photo shot={s.shot} class="still" />
 						<figcaption>{s.from}</figcaption>
@@ -94,7 +114,14 @@
 				<div class="legal">{player.legalName}</div>
 			{/if}
 
-			{#if !g.me}
+			{#if preview}
+				<p class="legal sealed">{preview.why}</p>
+				{#if preview.cta}
+					<a class="{buttonVariants({ size: 'lg' })} mt-3" href={preview.cta.href}>
+						{preview.cta.label}
+					</a>
+				{/if}
+			{:else if !g.me}
 				<p class="legal">Once your claim is approved you can work the chain from here.</p>
 			{:else if isMe}
 				<p class="legal">This is you.</p>
@@ -128,7 +155,7 @@
 				</Alert.Root>
 			{/if}
 
-			<dl class="vitals">
+			<dl class="vitals" class:frosted={preview}>
 				{#each vitals as [k, v] (k)}
 					<dt>{k}</dt>
 					<dd>{v}</dd>
@@ -192,6 +219,7 @@
 		</div>
 	</div>
 
+	<div class:frosted={preview}>
 	{#if canRoute}
 		<div class="block">
 			<h3 class="rule">Route — {DAYS[day]}</h3>
@@ -245,14 +273,17 @@
 		</div>
 	{/if}
 
-	<div class="block">
-		<h3 class="rule">Notes</h3>
-		<Textarea
-			autocomplete="off"
-			placeholder="habits, sightings, who they hang with…"
-			value={g.notes[player.gmId] ?? ''}
-			oninput={(e) => g.note(player.gmId, e.currentTarget.value)}
-		/>
+		{#if !preview}
+			<div class="block">
+				<h3 class="rule">Notes</h3>
+				<Textarea
+					autocomplete="off"
+					placeholder="habits, sightings, who they hang with…"
+					value={g.notes[player.gmId] ?? ''}
+					oninput={(e) => g.note(player.gmId, e.currentTarget.value)}
+				/>
+			</div>
+		{/if}
 	</div>
 </div>
 

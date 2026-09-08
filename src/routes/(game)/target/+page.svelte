@@ -16,6 +16,8 @@
 	const markId = $derived(g.myTargetId);
 	const mark = $derived(g.myTarget);
 	const options = $derived(g.alphabetical.map((p) => ({ ...p, dead: g.dead(p.gmId) })));
+	// The invented stand-in the projection sends when the real file is sealed.
+	const sample = $derived(markId ? (g.byId.get('demo') ?? null) : null);
 	const waiting = $derived(g.tier === 'pending');
 
 	// markId comes from the ring, not from local state, so backing out means
@@ -109,21 +111,23 @@
 {:else if mark}
 	{@render reported()}
 	<Dossier player={mark} wide />
-{:else if waiting}
-	<div class="brief">
-		<h1>Filed</h1>
-		<p>
-			You are down as hunting {g.name(markId)}. Their file opens once somebody
-			confirms you are who you say you are.
-		</p>
-		<Button variant="outline" disabled={busy} onclick={clear}>Change my target</Button>
-		{#if err}
-			<Alert.Root variant="destructive"><Alert.Description>{err}</Alert.Description></Alert.Root>
-		{/if}
-	</div>
+{:else if sample}
+	{@render reported()}
+	<!-- The real page, with an invented file behind glass. Waiting on approval
+	     and not having paid look the same from here; only the reason differs. -->
+	<Dossier
+		player={sample}
+		wide
+		preview={waiting
+			? { why: 'Their file opens once somebody confirms you are who you say you are.' }
+			: {
+					why: 'Reporting your draw and your kills is free. Their file is not.',
+					cta: { label: 'Unlock the fancy tools', href: '/upgrade' }
+				}}
+	/>
 {:else}
 	{@render reported()}
-	<Locked name={g.name(markId)} teaser={data.pitch} sample={g.byId.get('demo') ?? null} day={data.day} />
+	<Locked name={g.name(markId)} teaser={data.pitch} />
 {/if}
 
 <!-- Shown whether or not this account can read the file, because the state it

@@ -149,9 +149,19 @@ async function sampleFor(db: DB, gmId: string | null) {
 	const mark = targetOf(await loadChain(db), gmId);
 	if (!mark) return { campus: null, sample: null };
 
-	const map = await campus(db);
-	if (!map) return { campus: null, sample: null };
-	return { campus: map, sample: inventPlayer(map, 1 + (Number(mark) % 5), `preview:${mark}`) };
+	const [map, real] = await Promise.all([campus(db), onePlayer(db, mark)]);
+	if (!map || !real) return { campus: null, sample: null };
+
+	// Their real name and one real photograph — both of which the roster already
+	// shows — laid over an invented day. Everything under the name is false and
+	// is drawn behind glass; the two true things are the two you already had.
+	const sample = inventPlayer(map, 1 + (Number(mark) % 5), `preview:${mark}`);
+	sample.name = real.name;
+	sample.legalName = real.name;
+	sample.photos = real.photos.slice(0, 1);
+	sample.avatar = real.photos.length ? null : real.avatar;
+
+	return { campus: map, sample };
 }
 
 export async function project(db: DB, access: Access): Promise<Projection> {
@@ -195,8 +205,20 @@ export async function project(db: DB, access: Access): Promise<Projection> {
 	// Waiting on approval still needs the roster: you cannot name your target
 	// without a list of names, and the names are in the GroupMe anyway.
 	if (access.tier === 'pending') {
-		const [cards, hired] = await Promise.all([roster(db), somePlayers(db, granted)]);
-		return { term, tier: access.tier, players: hired, campus: null, roster: cards };
+		// Waiting on a human looks the same as not having paid: the file is
+		// sealed either way, so the same frosted preview stands in for it.
+		const [cards, hired, preview] = await Promise.all([
+			roster(db),
+			somePlayers(db, granted),
+			sampleFor(db, access.gmId)
+		]);
+		return {
+			term,
+			tier: access.tier,
+			players: [...hired, ...(preview.sample ? [preview.sample] : [])],
+			campus: preview.campus,
+			roster: cards
+		};
 	}
 
 	return { term, tier: access.tier, players: [], campus: null, roster: [] };

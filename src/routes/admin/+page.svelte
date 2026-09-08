@@ -279,8 +279,15 @@
 								<form method="POST" action="?/decide" use:enhance>
 									<input type="hidden" name="userId" value={r.userId} />
 									<input type="hidden" name="gmId" value={r.gmId ?? ''} />
-									<Button size="sm" variant="ghost" name="status" value="pending" type="submit">
-										Reopen
+									<Button
+										size="sm"
+										variant="ghost"
+										name="status"
+										value="pending"
+										type="submit"
+										title="Undo this decision and put the claim back in the queue"
+									>
+										Back to queue
 									</Button>
 								</form>
 							</td>
