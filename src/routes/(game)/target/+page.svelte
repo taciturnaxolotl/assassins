@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Dossier from '$lib/components/Dossier.svelte';
-	import Locked from '$lib/components/Locked.svelte';
 	import PlayerCombobox from '$lib/components/PlayerCombobox.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Alert from '$lib/components/ui/alert';
@@ -16,8 +15,6 @@
 	const markId = $derived(g.myTargetId);
 	const mark = $derived(g.myTarget);
 	const options = $derived(g.alphabetical.map((p) => ({ ...p, dead: g.dead(p.gmId) })));
-	// The invented stand-in the projection sends when the real file is sealed.
-	const sample = $derived(markId ? (g.byId.get('demo') ?? null) : null);
 	const waiting = $derived(g.tier === 'pending');
 
 	// markId comes from the ring, not from local state, so backing out means
@@ -109,20 +106,9 @@
 {:else if mark}
 	{@render reported()}
 	<Dossier player={mark} wide />
-{:else if sample}
-	{@render reported()}
-	<!-- The real page, with an invented file behind glass. Waiting on approval
-	     and not having paid look the same from here; only the reason differs. -->
-	<Dossier
-		player={sample}
-		wide
-		preview={waiting
-			? { why: 'Their file opens once somebody confirms you are who you say you are.' }
-			: { why: 'Fancy data right?', buy: true }}
-	/>
 {:else}
 	{@render reported()}
-	<Locked name={g.name(markId)} teaser={data.pitch} />
+	<p class="empty">Nobody by that name on the roster.</p>
 {/if}
 
 <!-- Shown whether or not this account can read the file, because the state it

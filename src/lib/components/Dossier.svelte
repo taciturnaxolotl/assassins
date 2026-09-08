@@ -16,20 +16,7 @@
 	import { CLASS, DAYS, WEEK, dayOf, place } from '$lib/game/time';
 	import type { Player } from '$lib/game/types';
 
-	let {
-		player,
-		wide = false,
-		preview = null
-	}: {
-		player: Player;
-		wide?: boolean;
-		/**
-		 * Show the real layout with invented contents behind frosted glass. The
-		 * name and the first photograph are real; everything under them is not,
-		 * and is not this person's. `why` is what it takes to see the real thing.
-		 */
-		preview?: { why: string; buy?: boolean } | null;
-	} = $props();
+	let { player, wide = false }: { player: Player; wide?: boolean } = $props();
 
 	const g = game();
 	// Today, unless they have nothing today — a dossier that opens on a blank
@@ -108,9 +95,11 @@
 	<div class="head">
 		{#if shots.length}
 			<div class="reel">
-				{#each preview ? shots.slice(0, 1) : shots as s, i (i)}
+				{#each shots as s, i (i)}
 					<figure class="frame">
-						<Photo shot={s.shot} class="still" />
+						<!-- Only the first: the skull says they are out, and saying it
+						     over every photograph in the reel says it four times. -->
+						<Photo shot={s.shot} class="still" dead={!i && g.dead(player.gmId)} />
 						<figcaption>{s.from}</figcaption>
 					</figure>
 				{/each}
@@ -123,14 +112,7 @@
 				<div class="legal">{player.legalName}</div>
 			{/if}
 
-			{#if preview}
-				<p class="legal sealed">{preview.why}</p>
-				{#if preview.buy}
-					<form method="POST" action="/api/billing/checkout" class="buy">
-						<Button type="submit" size="lg">Unlock the fancy tools</Button>
-					</form>
-				{/if}
-			{:else if !g.me}
+			{#if !g.me}
 				<p class="legal">Once your claim is approved you can work the chain from here.</p>
 			{:else if isMe}
 				<p class="legal">This is you.</p>
@@ -164,7 +146,7 @@
 				</Alert.Root>
 			{/if}
 
-			<dl class="vitals" class:frosted={preview}>
+			<dl class="vitals">
 				{#each vitals as [k, v] (k)}
 					<dt>{k}</dt>
 					<dd>{v}</dd>
@@ -230,7 +212,7 @@
 		</div>
 	</div>
 
-	<div class:frosted={preview}>
+	<div>
 	{#if canRoute}
 		<div class="block">
 			<h3 class="rule">Route — {DAYS[day]}</h3>
@@ -290,18 +272,15 @@
 			{/each}
 		</div>
 	{/if}
-
-		{#if !preview}
-			<div class="block">
-				<h3 class="rule">Notes</h3>
-				<Textarea
-					autocomplete="off"
-					placeholder="habits, sightings, who they hang with…"
-					value={g.notes[player.gmId] ?? ''}
-					oninput={(e) => g.note(player.gmId, e.currentTarget.value)}
-				/>
-			</div>
-		{/if}
+	<div class="block">
+		<h3 class="rule">Notes</h3>
+		<Textarea
+			autocomplete="off"
+			placeholder="habits, sightings, who they hang with…"
+			value={g.notes[player.gmId] ?? ''}
+			oninput={(e) => g.note(player.gmId, e.currentTarget.value)}
+		/>
+	</div>
 	</div>
 </div>
 
@@ -362,26 +341,9 @@
 		flex: 1;
 	}
 
-	.sealed {
-		font-size: 13px;
-		line-height: 1.6;
-		color: var(--color-warn);
-		margin: 22px 0 20px;
-	}
-	.buy {
-		margin-bottom: 18px;
-	}
 
 	/* The shape of the file with none of its contents. Unreachable as well as
 	   unreadable, so nothing invented can be clicked, selected or copied. */
-	.frosted {
-		/* Enough to make it unreadable, not so much that you cannot tell what
-		   you would be getting. */
-		filter: blur(3.5px) saturate(0.8);
-		opacity: 0.8;
-		pointer-events: none;
-		user-select: none;
-	}
 
 	dl.vitals {
 		display: grid;

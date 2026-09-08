@@ -36,8 +36,10 @@
 			: [])
 	];
 
-	// Free accounts have names and faces, so search reaches as far as it can.
-	// Pro accounts get the join, so it reaches into course codes and buildings.
+	// Search reaches over whatever the projection sent. That is names, halls and
+	// majors for a player, and course codes and buildings for whoever runs the
+	// game — the same expression either way, because the missing fields are
+	// simply absent rather than blanked.
 	const haystack = $derived.by(() => {
 		const m = new Map<string, string>();
 		for (const r of g.roster) {
@@ -104,7 +106,7 @@
 		<InputGroup.Input
 			type="search"
 			autocomplete="off"
-			placeholder={g.unlocked ? 'name, dorm, course, hometown…' : 'name…'}
+			placeholder={g.unlocked ? 'name, dorm, course, hometown…' : 'name, hall, major…'}
 			oninput={(e) => (q = e.currentTarget.value.trim().toLowerCase())}
 		/>
 		<InputGroup.Addon>
@@ -132,7 +134,7 @@
 		{@const face = r.photos[0] ?? r.avatar}
 		<a class="card" class:gone class:me={g.me === r.gmId} class:mark href="/player/{r.gmId}">
 			{#if face}
-				<Photo shot={face} class="shot" />
+				<Photo shot={face} class="shot" dead={gone} />
 			{:else}
 				<div class="shot none">{r.name[0]}</div>
 			{/if}

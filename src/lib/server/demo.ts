@@ -31,7 +31,7 @@ const BLOCKS = [
 
 /**
  * A small deterministic generator, so the same seed always invents the same
- * day. The preview behind the paywall has to hold still: a fake schedule that
+ * day. The front door's invented player has to hold still: a fake schedule that
  * reshuffles on every reload reads as a glitch rather than a sample.
  */
 function rng(seed: string) {

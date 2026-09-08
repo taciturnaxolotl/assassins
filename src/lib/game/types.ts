@@ -64,7 +64,10 @@ export type Dossier = {
 };
 
 // What the server is willing to tell you, given who you are and what you pay.
-export type Tier = 'anon' | 'unclaimed' | 'pending' | 'denied' | 'free' | 'pro';
+// There is nothing to buy any more: the file is either yours to read because
+// you run the game, or it is the public half everybody gets. So one approved
+// tier, not two.
+export type Tier = 'anon' | 'unclaimed' | 'pending' | 'denied' | 'player';
 
 export type Chain = {
 	assigned: Record<string, string>;

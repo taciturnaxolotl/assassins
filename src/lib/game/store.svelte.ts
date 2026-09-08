@@ -64,8 +64,9 @@ export class Game {
 		this.isFreeAgent = p.isFreeAgent;
 	}
 
+	/** Whoever runs the game sees the join; everybody else sees the public half. */
 	get unlocked() {
-		return this.tier === 'pro';
+		return this.isAdmin;
 	}
 
 	byId = $derived(new Map(this.players.map((p) => [p.gmId, p])));

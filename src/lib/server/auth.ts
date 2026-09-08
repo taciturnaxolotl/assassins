@@ -32,10 +32,6 @@ export type Env = {
 	ORIGIN?: string;
 	GOOGLE_CLIENT_ID: string;
 	GOOGLE_CLIENT_SECRET: string;
-	POLAR_ACCESS_TOKEN?: string;
-	POLAR_WEBHOOK_SECRET?: string;
-	POLAR_SERVER?: string;
-	POLAR_PRODUCT_ID?: string;
 	ADMIN_USERNAMES?: string;
 	/** Reading the kills topic. Without it that whole feature is absent. */
 	GROUPME_TOKEN?: string;
@@ -240,7 +236,6 @@ export async function upsertUser(db: DB, env: Env, who: GoogleIdentity) {
 		image: who.picture,
 		username,
 		role: isAdminName(env, username) ? 'admin' : 'player',
-		plan: 'free',
 		createdAt: now,
 		updatedAt: now
 	});

@@ -1,20 +1,25 @@
 <script lang="ts">
 	import Dossier from '$lib/components/Dossier.svelte';
-	import Locked from '$lib/components/Locked.svelte';
 	import { game } from '$lib/game/store.svelte';
 
 	let { data } = $props();
 	const g = game();
 
-	// The store only holds files this account may read, so its absence is the
-	// answer rather than something to check for separately.
 	const player = $derived(g.byId.get(data.gmId) ?? null);
+	const name = $derived(player?.name ?? g.name(data.gmId) ?? 'Unknown');
 </script>
 
-<svelte:head><title>{data.name} · Assassins</title></svelte:head>
+<svelte:head><title>{name} · Assassins</title></svelte:head>
 
 {#if player}
 	<Dossier {player} wide />
 {:else}
-	<Locked name={data.name} teaser={data.pitch} />
+	<p class="empty">Nobody by that name.</p>
 {/if}
+
+<style>
+	.empty {
+		color: var(--color-dim);
+		font-style: italic;
+	}
+</style>

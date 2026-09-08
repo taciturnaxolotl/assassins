@@ -16,9 +16,6 @@ export const user = sqliteTable('user', {
 	// student id, so it is stamped once at sign-in and never guessed again.
 	username: text('username'),
 	role: text('role').notNull().default('player'),
-	// Kept current by the Polar webhook so gating never costs a round trip.
-	plan: text('plan').notNull().default('free'),
-	planUntil: integer('plan_until', { mode: 'timestamp' }),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 	updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull()
 });

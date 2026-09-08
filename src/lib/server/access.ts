@@ -12,9 +12,7 @@ export type Account = {
 	image: string | null;
 	username: string | null;
 	role: string;
-	plan: string;
 	/** When paid access runs out. Null means it does not. */
-	planUntil?: Date | null;
 };
 
 export type Access = {
@@ -102,24 +100,15 @@ export async function accessFor(
 		claim,
 		gmId: claim.gmId,
 		isFreeAgent: !claim.gmId,
-		// There is no point charging yourself to read your own approval queue.
-		tier: isAdmin || isPaid(user) ? 'pro' : 'free'
+		tier: 'player'
 	};
 }
 
-/**
- * Paid up right now. The date matters: a one-off purchase can be stamped with
- * the end of the game, and without checking it a lapsed account would read as
- * paid forever.
- */
-const isPaid = (user: Account) =>
-	user.plan === 'pro' && (!user.planUntil || user.planUntil.getTime() > Date.now());
-
 /** Tiers that may file their own edges of the ring. */
-export const isPlayer = (t: Tier) => t === 'pending' || t === 'free' || t === 'pro';
+export const isPlayer = (t: Tier) => t === 'pending' || t === 'player';
 
 /** Tiers whose claim a human has agreed with. */
-export const isApproved = (t: Tier) => t === 'free' || t === 'pro';
+export const isApproved = (t: Tier) => t === 'player';
 
 /** Where a tier belongs when it asks for a page it cannot have. */
 export const landingFor = (t: Tier) =>

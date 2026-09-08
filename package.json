@@ -37,11 +37,9 @@
     "wrangler": "^4.129.1"
   },
   "dependencies": {
-    "@polar-sh/sdk": "^0.49.0",
     "bits-ui": "^2.19.0",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
-    "standardwebhooks": "^1.1.1",
     "tailwind-merge": "^3.6.0",
     "tailwind-variants": "^3.3.1"
   }

@@ -49,7 +49,6 @@ export async function accountFor(db: DB, gmId: string) {
 		image: null,
 		username: player.username ?? null,
 		role: 'player',
-		plan: 'free',
 		createdAt: now,
 		updatedAt: now
 	});

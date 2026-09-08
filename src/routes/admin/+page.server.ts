@@ -48,7 +48,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					email: schema.user.email,
 					username: schema.user.username,
 					image: schema.user.image,
-					plan: schema.user.plan
 				}
 			})
 			.from(schema.claim)
@@ -151,7 +150,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		state: {
 			players: cards.length,
 			claimed: taken.size,
-			pro: rows.filter((r) => r.status === 'approved' && r.user.plan === 'pro').length,
 			agents: rows.filter((r) => r.status === 'approved' && r.freeAgent).length,
 			reported: Object.keys(chain.assigned).length,
 			down: Object.keys(chain.kills).length,
@@ -325,17 +323,6 @@ export const actions: Actions = {
 				? 'Claims are approved as they arrive. Anyone can now name themselves as any unclaimed player.'
 				: 'Claims that the directory cannot vouch for wait here again.'
 		};
-	},
-
-	comp: async ({ request, locals }) => {
-		guard(locals);
-		const form = await request.formData();
-		const userId = String(form.get('userId') ?? '');
-		const plan = String(form.get('plan') ?? 'free');
-		await locals.db
-			.update(schema.user)
-			.set({ plan, updatedAt: new Date() })
-			.where(eq(schema.user.id, userId));
-		return { message: `Moved to ${plan}.` };
 	}
+
 };

@@ -18,20 +18,21 @@
 		return () => clearInterval(t);
 	});
 
-	// What a player gets. The roster and the campus map are for running the
-	// game, not playing it: browsing all seventy-nine files is a different thing
-	// from hunting one person, and it is not what anybody paid for.
+	// The roster is everybody's now: names, faces, year, hall, and who is still
+	// standing. That is the game as it is actually played.
 	const TABS = [
 		['/target', 'Target'],
+		['/roster', 'Roster']
 	] as const;
 
-	// Your own file, which is the one you are least able to look up any other
-	// way — the roster is not for players and searching for yourself is odd.
-	// A free agent is nobody on the roster, so there is nothing to show them.
+	// Your own file. Searching the roster for yourself works, but a tab is
+	// kinder. Somebody outside the ring is nobody on it, so there is nothing to
+	// point at.
 	const mine = $derived(g.me ? `/player/${g.me}` : null);
 
+	// The campus map and the ring are for running the game rather than playing
+	// it: one draws everybody's timetable, the other is the game's one secret.
 	const RUNNING = [
-		['/roster', 'Roster'],
 		['/campus', 'Campus'],
 		['/chain', 'Chain']
 	] as const;

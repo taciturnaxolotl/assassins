@@ -16,7 +16,7 @@
 		() =>
 			new Game({
 				term: data.term,
-				tier: 'pro',
+				tier: 'player',
 				players: data.demo ? [data.demo] : [],
 				campus: data.campus,
 				roster: [],

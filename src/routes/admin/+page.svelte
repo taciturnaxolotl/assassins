@@ -386,7 +386,6 @@
 			<div><dt>Signed in</dt><dd>{data.state.claimed}</dd></div>
 			<div><dt>Draws reported</dt><dd>{data.state.reported}</dd></div>
 			<div><dt>Down</dt><dd>{data.state.down}</dd></div>
-			<div><dt>Paid</dt><dd>{data.state.pro}</dd></div>
 			<div><dt>Free agents</dt><dd>{data.state.agents}</dd></div>
 		</dl>
 
@@ -469,19 +468,6 @@
 								{#if r.verdict}<div class="legal">{r.verdict}</div>{/if}
 							</td>
 							<td>
-								<form method="POST" action="?/comp" use:enhance>
-									<Button
-										size="sm"
-										variant={r.user.plan === 'pro' ? 'default' : 'outline'}
-										type="submit"
-										name="plan"
-										value={r.user.plan === 'pro' ? 'free' : 'pro'}
-										title={r.user.plan === 'pro' ? 'Drop to free' : 'Unlock for free'}
-									>
-										{r.user.plan}
-									</Button>
-									<input type="hidden" name="userId" value={r.userId} />
-								</form>
 							</td>
 							<td class="legal">{r.decidedAt ? when(r.decidedAt) : ''}</td>
 							<td class="tools">

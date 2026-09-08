@@ -1,11 +1,14 @@
 // What the server is willing to say, given who is asking.
 //
-// The whole dossier is the product, so it never leaves the worker unpaid for.
-// The gate is the query rather than a filter after the fact: a free account's
-// request never selects a dorm, a schedule or a hometown, so there is no path
-// by which one could leak. Free gets the roster — names and the faces everyone
-// in the GroupMe has already seen — plus their own row in full. Pro gets the
-// join and the campus they walk across.
+// Two answers, not a scale. Whoever runs the game gets the join: schedules,
+// rooms, the campus, the directory photograph, everything the build could
+// resolve. Everybody else gets the public half — the name, the faces, the year,
+// the hall, the likely major — and that is the whole game as it is played:
+// who these people are and whether they are still standing.
+//
+// The gate is the query rather than a filter after the fact, so a player's
+// request never selects a schedule and there is no path by which one could
+// leak.
 
 import { eq, inArray, like } from 'drizzle-orm';
 import type { DB } from './db';
@@ -15,14 +18,19 @@ import type { Campus, Player, Tier } from '$lib/game/types';
 
 const P = schema.player;
 
-// The cheap columns: what a name and a face need, and nothing that costs money.
+// The public columns. Faces, because the whole game is recognising somebody.
+// Year, hall and likely major, because those are what people say about each
+// other out loud anyway. Nothing here is a timetable.
 const CARD = {
 	gmId: P.gmId,
 	name: P.name,
 	matched: P.matched,
 	avatar: P.avatar,
 	photos: P.photos,
-	class: P.class
+	gallery: P.gallery,
+	class: P.class,
+	dorm: P.dorm,
+	majors: P.majors
 } as const;
 
 export type RosterCard = {
@@ -31,7 +39,10 @@ export type RosterCard = {
 	matched: boolean;
 	avatar: Player['avatar'];
 	photos: Player['photos'];
+	gallery: Player['gallery'];
 	class: string | null;
+	dorm: string | null;
+	majors: Player['majors'];
 };
 
 /**
@@ -81,7 +92,19 @@ const rehydrate = (r: typeof P.$inferSelect): Player => ({
 	schedule: r.schedule ?? []
 });
 
-export const roster = (db: DB) => db.select(CARD).from(P).orderBy(P.name) as Promise<RosterCard[]>;
+/** The public half of everybody, with the photographs filed during the game. */
+export async function roster(db: DB): Promise<RosterCard[]> {
+	const [rows, extra] = await Promise.all([
+		db.select(CARD).from(P).orderBy(P.name),
+		db.select().from(schema.extraPhoto)
+	]);
+	const found = new Map<string, Player['photos']>();
+	for (const r of extra) found.set(r.gmId, [...(found.get(r.gmId) ?? []), { url: r.url, rotate: 0 }]);
+	return rows.map((r) => ({
+		...(r as RosterCard),
+		photos: [...(r.photos ?? []), ...(found.get(r.gmId) ?? [])]
+	}));
+}
 
 export const everyone = async (db: DB) => {
 	// Every extra photo belongs to somebody on the roster, so both halves can be
@@ -179,108 +202,26 @@ export type Projection = {
 	roster: RosterCard[] | null;
 };
 
-/**
- * The invented day behind the paywall, and the campus to draw it on.
- *
- * Seeded on the mark so it holds still between reloads — a sample that
- * reshuffles reads as a glitch — but nothing in it is theirs, and the panel
- * says so. Only made when there is actually a mark to be kept out of.
- */
-async function sampleFor(db: DB, gmId: string | null) {
-	if (!gmId) return { campus: null, sample: null };
-	const { loadChain } = await import('./game');
-	const { targetOf } = await import('$lib/game/chain');
-	const { inventPlayer } = await import('./demo');
-
-	const mark = targetOf(await loadChain(db), gmId);
-	if (!mark) return { campus: null, sample: null };
-
-	const [map, real] = await Promise.all([campus(db), onePlayer(db, mark)]);
-	if (!map || !real) return { campus: null, sample: null };
-
-	// Their real name and one real photograph — both of which the roster already
-	// shows — laid over an invented day. Everything under the name is false and
-	// is drawn behind glass; the two true things are the two you already had.
-	const sample = inventPlayer(map, `preview:${mark}`);
-	sample.name = real.name;
-	sample.legalName = real.name;
-	sample.photos = real.photos.slice(0, 1);
-	sample.avatar = real.photos.length ? null : real.avatar;
-
-	return { campus: map, sample };
-}
-
 export async function project(db: DB, access: Access): Promise<Projection> {
-	if (access.tier === 'pro') {
+	// Whoever runs the game gets the join and the campus to draw it on.
+	if (access.isAdmin) {
 		const [{ term }, players, map] = await Promise.all([meta(db), everyone(db), campus(db)]);
 		return { term, tier: access.tier, players, campus: map, roster: null };
 	}
 
-	const { term } = await meta(db);
-
-	if (access.tier === 'free') {
-		// You always get yourself in full. It is your own dossier; the paywall
-		// is on everyone else.
-		const [cards, own, preview] = await Promise.all([
-			roster(db),
-			access.gmId ? onePlayer(db, access.gmId) : null,
-			sampleFor(db, access.gmId)
-		]);
-		return {
-			term,
-			tier: access.tier,
-			players: [
-				...(own ? [own] : []),
-				// Openly invented, and openly not the mark's: the paywall shows the
-				// shape of the thing rather than a blank wall.
-				...(preview.sample ? [preview.sample] : [])
-			],
-			// OpenStreetMap, which the front door already serves to anybody.
-			campus: preview.campus,
-			roster: cards
-		};
-	}
-
-	// Waiting on approval still needs the roster: you cannot name your target
-	// without a list of names, and the names are in the GroupMe anyway.
-	if (access.tier === 'pending') {
-		// Waiting on a human looks the same as not having paid: the file is
-		// sealed either way, so the same frosted preview stands in for it.
-		const [cards, preview] = await Promise.all([
-			roster(db),
-			sampleFor(db, access.gmId)
-		]);
-		return {
-			term,
-			tier: access.tier,
-			players: preview.sample ? [preview.sample] : [],
-			campus: preview.campus,
-			roster: cards
-		};
-	}
-
-	return { term, tier: access.tier, players: [], campus: null, roster: [] };
-}
-
-// The pitch. Enough to prove there is something behind the paywall without
-// being the thing itself: how many photos, how many sections, not which.
-export async function teaser(db: DB, gmId: string) {
-	const [r] = await db.select().from(P).where(eq(P.gmId, gmId)).limit(1);
-	if (!r) return null;
+	// Everybody else gets the public half of everybody. There is no longer a
+	// reason to send one player their own row in full and everyone else's in
+	// outline: the same columns answer for the whole roster.
+	const [{ term }, cards] = await Promise.all([meta(db), roster(db)]);
+	// The card is the player, as far as anybody but an admin is concerned, so it
+	// travels as one. Every page then reads from the same list and renders
+	// whatever fields happen to be on it.
 	return {
-		gmId: r.gmId,
-		name: r.name,
-		shots: [r.avatar, ...(r.photos ?? []), ...(r.gallery ?? []), r.directoryPhoto].filter(Boolean)
-		.length,
-		sections: r.schedule?.length ?? 0,
-		meetings: (r.schedule ?? []).reduce((n, c) => n + (c.meets?.length ?? 0), 0),
-		buildings: new Set(
-			(r.schedule ?? []).flatMap((c) => c.meets.map((m) => m.building).filter(Boolean))
-		).size,
-		knowsDorm: !!r.dorm,
-		knowsHometown: !!r.hometown,
-		knowsMajor: !!r.majors?.length
+		term,
+		tier: access.tier,
+		players: cards as unknown as Player[],
+		campus: null,
+		roster: cards
 	};
 }
 
-export type Teaser = NonNullable<Awaited<ReturnType<typeof teaser>>>;
