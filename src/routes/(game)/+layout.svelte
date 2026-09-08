@@ -36,6 +36,13 @@
 
 </script>
 
+<svelte:head>
+	<!-- A shared link to any of these must not put somebody's name in a preview
+	     card, so they all describe the game rather than the page. -->
+	<meta property="og:title" content="Assassins 26" />
+	<meta property="og:description" content="Cedarville, this term." />
+</svelte:head>
+
 <header>
 	<h1>Assassins <span class="year">26</span></h1>
 	<div class="tally">{g.living} alive / {g.roster.length} · {g.term}</div>

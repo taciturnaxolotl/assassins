@@ -7,6 +7,7 @@
     "data:remote": "bun scripts/build.mjs --remote",
     "galleries": "bun scripts/fetch-galleries.mjs",
     "photos:hash": "bun scripts/hash-photos.mjs",
+    "og": "bun scripts/og-image.mjs",
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite build && wrangler dev",

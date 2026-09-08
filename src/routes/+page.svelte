@@ -35,7 +35,18 @@
 	let day = $state(untrack(() => data.day));
 </script>
 
-<svelte:head><title>Assassins {data.term}</title></svelte:head>
+<svelte:head>
+	<title>Assassins 26</title>
+	<meta
+		name="description"
+		content="Everyone drew a name. Everyone is somebody's name. The file on whoever you drew, joined out of what campus already publishes about them."
+	/>
+	<meta property="og:title" content="Assassins 26" />
+	<meta
+		property="og:description"
+		content="Everyone drew a name. Everyone is somebody's name."
+	/>
+</svelte:head>
 
 <header>
 	<h1>Assassins <span class="year">26</span></h1>
