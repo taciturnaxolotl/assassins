@@ -16,7 +16,8 @@
 		day,
 		onday,
 		compact = false,
-		marks = []
+		marks = [],
+		mine = null
 	}: {
 		people: Player[];
 		day: number;
@@ -24,6 +25,8 @@
 		compact?: boolean;
 		/** Places worth standing, drawn over the route rather than in it. */
 		marks?: { x: number; y: number; label: string }[];
+		/** Your own day, drawn alongside theirs so the two can be compared. */
+		mine?: Player | null;
 	} = $props();
 
 	const g = game();
@@ -92,6 +95,22 @@
 			.filter((b) => b.d);
 	});
 
+	// Your own day, drawn in green against their red. Deliberately not folded
+	// into `people`: a second person there means a crowd, and a crowd is drawn
+	// as traffic weight rather than as routes.
+	let showMine = $state(true);
+	const ours = $derived.by(() => {
+		if (crowd || !mine || !showMine || !g.walker)
+			return { legs: [] as string[], pins: [] as { x: number; y: number }[] };
+		const plan = g.walker.plan(g.slots, mine, day);
+		return {
+			legs: plan.stops
+				.filter((s) => s.leg)
+				.map((s) => s.leg!.path.map((n) => M.nodes[n].join(',')).join(' ')),
+			pins: plan.located.map((s) => ({ x: M.nodes[s.node!][0], y: M.nodes[s.node!][1] }))
+		};
+	});
+
 	const legs = $derived(
 		crowd
 			? []
@@ -122,6 +141,19 @@
 		}
 		return out;
 	});
+
+	// A ring drawn over a pin that already gives the time does not need to give
+	// it again. Two identical timestamps stacked on one spot reads as a fault.
+	const labelledMarks = $derived(
+		marks.map((m) => ({
+			...m,
+			label: pins.some(
+				(p) => Math.hypot(p.x - m.x, p.y - m.y) < 12 && p.at.split(', ').includes(m.label)
+			)
+				? ''
+				: m.label
+		}))
+	);
 
 	// ─── camera ─────────────────────────────────────────────────────────────
 
@@ -280,6 +312,18 @@
 				<Button variant="outline" size="sm" onclick={() => zoomBy(1 / 1.4)} aria-label="Zoom in">
 					+
 				</Button>
+				{#if mine && !crowd}
+					<Button
+						variant="outline"
+						size="sm"
+						class={showMine ? 'on' : ''}
+						aria-pressed={showMine}
+						onclick={() => (showMine = !showMine)}
+					>
+						<span class="swatch" aria-hidden="true"></span>
+						your day
+					</Button>
+				{/if}
 				<Button variant="outline" size="sm" onclick={fit}>fit</Button>
 				<Button variant="outline" size="sm" onclick={() => (full = true)}>fullscreen</Button>
 			</div>
@@ -325,6 +369,14 @@
 					<polyline {points} />
 				{/each}
 			</g>
+			<g class="ours">
+				{#each ours.legs as points, i (i)}
+					<polyline {points} />
+				{/each}
+				{#each ours.pins as pin, i (i)}
+					<circle cx={pin.x} cy={pin.y} />
+				{/each}
+			</g>
 			<g class="pins">
 				{#each pins as pin, i (i)}
 					<circle cx={pin.x} cy={pin.y} class={pin.home ? 'home' : ''} />
@@ -334,10 +386,10 @@
 				{/each}
 			</g>
 			<g class="marks">
-				{#each marks as m, i (i)}
+				{#each labelledMarks as m, i (i)}
 					<circle cx={m.x} cy={m.y} />
-					{#if !compact}
-						<text x={m.x + 11} y={m.y - 6}>{m.label}</text>
+					{#if !compact && m.label}
+						<text x={m.x + 12} y={m.y - 14}>{m.label}</text>
 					{/if}
 				{/each}
 			</g>
@@ -442,6 +494,40 @@
 		stroke-opacity: 0.85;
 	}
 
+	/* The toggle wears the colour it controls. */
+	.chips :global(button .swatch) {
+		display: inline-block;
+		width: 9px;
+		height: 3px;
+		margin-right: 5px;
+		border-radius: 2px;
+		background: var(--color-live);
+		opacity: 0.35;
+	}
+	.chips :global(button[aria-pressed='true'] .swatch) {
+		opacity: 1;
+	}
+
+	/* Your own day. Green against their red, and thinner, because it is the
+	   reference and theirs is the subject. */
+	.ours polyline {
+		stroke: var(--color-live);
+		fill: none;
+		stroke-width: 3;
+		stroke-opacity: 0.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-dasharray: 7 5;
+		vector-effect: non-scaling-stroke;
+	}
+	.ours circle {
+		fill: var(--color-live);
+		stroke: var(--color-bg);
+		stroke-width: 1.5;
+		vector-effect: non-scaling-stroke;
+		r: max(calc(4px * var(--k, 1)), 2px);
+	}
+
 	.pins circle {
 		fill: var(--color-blood);
 		stroke: var(--color-bg);
@@ -473,6 +559,16 @@
 		font-family: var(--font-mono);
 		font-weight: 600;
 		font-size: max(calc(9px * var(--k, 1)), 5px);
+	}
+	/* Routes run under the labels, and a stroke through a digit turns an 0 into
+	   an 8. Draw the background behind each glyph first. */
+	.marks text,
+	.pins text {
+		paint-order: stroke;
+		stroke: var(--color-bg);
+		stroke-width: 3px;
+		stroke-linejoin: round;
+		vector-effect: non-scaling-stroke;
 	}
 
 	.labels text {

@@ -62,11 +62,11 @@
 	// Where this person's day and your own could put you in the same place.
 	// Your own file is always in the projection, so this works on the free tier
 	// as well — it is your day being compared, not theirs being given away.
-	const me = $derived(g.me ? (g.byId.get(g.me) ?? null) : null);
+	const mine = $derived(
+		g.me && g.me !== player.gmId ? (g.byId.get(g.me) ?? null) : null
+	);
 	const touches = $derived(
-		g.walker && me && me.gmId !== player.gmId
-			? crossings(g.walker, g.slots, me, player, day)
-			: []
+		g.walker && mine ? crossings(g.walker, g.slots, mine, player, day) : []
 	);
 	const marks = $derived(
 		touches.map((c) => ({ x: c.x, y: c.y, label: hhmm(Math.round(c.from)) }))
@@ -241,7 +241,14 @@
 		<div class="block">
 			<h3 class="rule">Route — {DAYS[day]}</h3>
 			<div class="mapwrap">
-				<CampusMap people={[player]} {day} onday={(d) => (day = d)} compact={!wide} {marks} />
+				<CampusMap
+					people={[player]}
+					{day}
+					onday={(d) => (day = d)}
+					compact={!wide}
+					{marks}
+					{mine}
+				/>
 				<Itinerary {player} {day} />
 			</div>
 
