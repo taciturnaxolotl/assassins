@@ -16,7 +16,7 @@
 // ever allowed to upgrade.
 
 import { Polar } from '@polar-sh/sdk';
-import { validateEvent, WebhookVerificationError } from '@polar-sh/sdk/webhooks';
+import { Webhook } from 'standardwebhooks';
 import { eq } from 'drizzle-orm';
 import type { DB } from './db';
 import { schema } from './db';
@@ -126,34 +126,46 @@ export async function syncPlan(env: Env, db: DB, userId: string) {
 // ─── the webhook ────────────────────────────────────────────────────────────
 
 export async function handleWebhook(env: Env, db: DB, body: string, headers: Headers) {
-	let event;
+	// Verified against the Standard Webhooks spec directly rather than through
+	// `@polar-sh/sdk/webhooks`.
+	//
+	// Their `validateEvent` cannot check a real Polar signature. It does
+	// `Buffer.from(secret,'utf8').toString('base64')` and hands that to the same
+	// library, which base64-decodes it straight back — so the key ends up being
+	// the literal bytes of `whsec_…`, fifty of them, where the spec uses the
+	// thirty-two you get by base64-decoding the part after the prefix. Polar's
+	// servers sign to the spec. Measured: a spec-signed body fails
+	// `validateEvent` and passes `new Webhook(secret).verify`, and an
+	// SDK-signed one does the reverse.
+	//
+	// The signature is the security boundary and it is checked properly here.
+	// The body is then read for the handful of fields this needs.
+	let event: { type?: string; data?: Record<string, unknown> };
 	try {
-		event = validateEvent(
+		new Webhook(env.POLAR_WEBHOOK_SECRET ?? '').verify(
 			body,
-			Object.fromEntries(headers.entries()),
-			env.POLAR_WEBHOOK_SECRET ?? ''
+			Object.fromEntries(headers.entries())
 		);
+		event = JSON.parse(body);
 	} catch (e) {
-		if (e instanceof WebhookVerificationError)
-			return { ok: false, status: 403, note: 'bad signature' };
-		// Signature good, body not a shape the SDK knows. Retrying will not
-		// change that, so take it once rather than have Polar redeliver forever.
-		return { ok: true, status: 202, note: `unparseable: ${(e as Error).message.slice(0, 200)}` };
+		return { ok: false, status: 403, note: `rejected: ${(e as Error).message.slice(0, 120)}` };
 	}
+	if (!event?.type) return { ok: true, status: 202, note: 'no event type' };
 
-	const data = event.data as {
+	// Polar sends snake_case on the wire; the SDK was what camel-cased it.
+	const data = (event.data ?? {}) as {
 		// `customer.state_changed` carries the customer itself; everything else
 		// nests it.
 		// `customer.state_changed` carries the customer itself; everything else
 		// nests it.
-		externalId?: string | null;
-		customer?: { externalId?: string | null } | null;
+		external_id?: string | null;
+		customer?: { external_id?: string | null } | null;
 		status?: string;
-		currentPeriodEnd?: string | Date | null;
-		activeSubscriptions?: { status: string; currentPeriodEnd?: string | Date | null }[];
+		current_period_end?: string | null;
+		active_subscriptions?: { status: string; current_period_end?: string | null }[];
 	};
 
-	const userId = data.customer?.externalId ?? data.externalId ?? null;
+	const userId = data.customer?.external_id ?? data.external_id ?? null;
 	if (!userId) return { ok: true, status: 200, note: `${event.type}: no external id` };
 
 	const say = (note: string) => ({ ok: true as const, status: 200, note: `${event.type} ${note}` });
@@ -171,9 +183,9 @@ export async function handleWebhook(env: Env, db: DB, body: string, headers: Hea
 		// Only ever upgrades. A one-time buyer has no active subscription, and
 		// reading that as "not paid" would revoke everybody.
 		case 'customer.state_changed': {
-			const live = (data.activeSubscriptions ?? []).find((s) => PAID.has(s.status));
+			const live = (data.active_subscriptions ?? []).find((s) => PAID.has(s.status));
 			if (!live) return say('no live subscription, left alone');
-			await setPlan(db, userId, 'pro', when(live.currentPeriodEnd));
+			await setPlan(db, userId, 'pro', when(live.current_period_end));
 			return say('-> pro');
 		}
 	}
@@ -184,11 +196,11 @@ export async function handleWebhook(env: Env, db: DB, body: string, headers: Hea
 	// they already paid for runs out.
 	if (event.type.startsWith('subscription.')) {
 		const paid = PAID.has(data.status ?? '');
-		await setPlan(db, userId, paid ? 'pro' : 'free', when(data.currentPeriodEnd));
+		await setPlan(db, userId, paid ? 'pro' : 'free', when(data.current_period_end));
 		return say(`(${data.status}) -> ${paid ? 'pro' : 'free'}`);
 	}
 
 	return say('ignored');
 }
 
-const when = (v: string | Date | null | undefined) => (v ? new Date(v) : null);
+const when = (v: string | null | undefined) => (v ? new Date(v) : null);
