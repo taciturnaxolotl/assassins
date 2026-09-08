@@ -67,6 +67,32 @@ if (existsSync(galleryFile)) {
   }
 }
 
+// Chapel. Ten to eleven, every weekday, the whole campus in one building.
+//
+// It is in nobody's booklist because nobody registers for it, so the catalog
+// join can never produce it — and it is the single most useful hour in the
+// game, the one time you know where everybody is. Added to every player rather
+// than only the matched ones: attendance does not depend on whether the
+// directory could work out who somebody is.
+const CHAPEL = {
+  code: "CHAPEL",
+  section: "CHAPEL",
+  title: "Chapel",
+  credits: 0,
+  instructor: null,
+  meets: [
+    {
+      days: [1, 2, 3, 4, 5],
+      start: "10:00 AM",
+      end: "11:00 AM",
+      building: "Dixon Ministry Center",
+      room: null,
+      online: false,
+      kind: "Chapel",
+    },
+  ],
+};
+
 // Colour fingerprints from `bun run photos:hash`, used to notice when somebody
 // has posted their profile picture, or a crop of it, as their reference photo.
 // Optional: without the file every photo is kept.
@@ -293,6 +319,7 @@ const players = roster.map((r) => {
   };
 
   if (!p) {
+    player.schedule = [CHAPEL];
     player.candidates = (candidates.length ? candidates : suggest(r.nickname)).map((c) => ({
       id: String(c.Id),
       name: `${c.Nickname || c.FirstName} ${c.LastName}`,
@@ -316,9 +343,12 @@ const players = roster.map((r) => {
     hometown: e ? [e.Hometown, e.State].filter(Boolean).join(", ") : null,
     directoryPhoto: mirrored[String(p.Id)] ? { url: mirrored[String(p.Id)], rotate: 0 } : null,
     majors: majorGuess(sections),
-    schedule: [...sections]
-      .map((s) => meetings.get(s) ?? { code: s.split("-").slice(0, 2).join("-"), section: s, title: null, meets: [] })
-      .sort((a, b) => a.section.localeCompare(b.section)),
+    schedule: [
+      CHAPEL,
+      ...[...sections]
+        .map((s) => meetings.get(s) ?? { code: s.split("-").slice(0, 2).join("-"), section: s, title: null, meets: [] })
+        .sort((a, b) => a.section.localeCompare(b.section)),
+    ],
   });
   return player;
 });
