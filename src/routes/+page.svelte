@@ -37,15 +37,9 @@
 
 <svelte:head>
 	<title>Assassins 26</title>
-	<meta
-		name="description"
-		content="Everyone drew a name. Everyone is somebody's name. The file on whoever you drew, joined out of what campus already publishes about them."
-	/>
+	<meta name="description" content="Let the games begin" />
 	<meta property="og:title" content="Assassins 26" />
-	<meta
-		property="og:description"
-		content="Everyone drew a name. Everyone is somebody's name."
-	/>
+	<meta property="og:description" content="Let the games begin" />
 </svelte:head>
 
 <header>

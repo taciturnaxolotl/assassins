@@ -40,7 +40,7 @@
 	<!-- A shared link to any of these must not put somebody's name in a preview
 	     card, so they all describe the game rather than the page. -->
 	<meta property="og:title" content="Assassins 26" />
-	<meta property="og:description" content="Cedarville, this term." />
+	<meta property="og:description" content="Let the games begin" />
 </svelte:head>
 
 <header>
