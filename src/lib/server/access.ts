@@ -12,7 +12,7 @@ export type Account = {
 	image: string | null;
 	username: string | null;
 	role: string;
-	/** When paid access runs out. Null means it does not. */
+	scout?: boolean;
 };
 
 export type Access = {
@@ -29,6 +29,8 @@ export type Access = {
 	isFreeAgent: boolean;
 	claim: typeof schema.claim.$inferSelect | null;
 	isAdmin: boolean;
+	/** Promoted to read their own target's full file, short of being an admin. */
+	isScout: boolean;
 	/** An impersonated session has been explicitly armed to write. */
 	spoofWrite?: boolean;
 };
@@ -40,6 +42,7 @@ export const ANON: Access = {
 	gmId: null,
 	claim: null,
 	isAdmin: false,
+	isScout: false,
 	isFreeAgent: false
 };
 
@@ -68,6 +71,9 @@ export async function accessFor(
 ): Promise<Access> {
 	if (!user) return ANON;
 	const isAdmin = user.role === 'admin';
+	// Admins already see everything, so the flag only means something short of
+	// that.
+	const isScout = !isAdmin && !!user.scout;
 	const claim =
 		known !== undefined
 			? known
@@ -83,20 +89,21 @@ export async function accessFor(
 	// an admin still has to say which player they are, or they would have no
 	// target, no place in the ring, and a Target page with nothing on it.
 	if (!claim)
-		return { user, isAdmin, claim: null, gmId: null, tier: 'unclaimed', isFreeAgent: false };
+		return { user, isAdmin, isScout, claim: null, gmId: null, tier: 'unclaimed', isFreeAgent: false };
 	if (claim.status === 'denied')
-		return { user, isAdmin, claim, gmId: null, tier: 'denied', isFreeAgent: false };
+		return { user, isAdmin, isScout, claim, gmId: null, tier: 'denied', isFreeAgent: false };
 
 	// A claim still in the queue carries its gmId anyway. Waiting on a human is
 	// no reason to be unable to file your own draw — that half of the app is
 	// free for everyone, and the ring has a hole in it until they can. Reading
 	// is what approval buys.
 	if (claim.status !== 'approved')
-		return { user, isAdmin, claim, gmId: claim.gmId, tier: 'pending', isFreeAgent: !claim.gmId };
+		return { user, isAdmin, isScout, claim, gmId: claim.gmId, tier: 'pending', isFreeAgent: !claim.gmId };
 
 	return {
 		user,
 		isAdmin,
+		isScout,
 		claim,
 		gmId: claim.gmId,
 		isFreeAgent: !claim.gmId,

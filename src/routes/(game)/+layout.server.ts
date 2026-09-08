@@ -34,6 +34,14 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 			if (them) wanted.push(them);
 		}
 
+		// A scout sees their own target's whole file, wherever it is drawn.
+		// chain.myTarget is the server's word on who that is, and it only advances
+		// on a confirmed kill, so this never runs ahead of the game.
+		if (access.isScout && chain.myTarget) {
+			const mark = await onePlayer(db, chain.myTarget);
+			if (mark) wanted.push(mark);
+		}
+
 		if (wanted.length) {
 			const ids = new Set(wanted.map((p) => p.gmId));
 			projection.players = [...wanted, ...projection.players.filter((p) => !ids.has(p.gmId))];

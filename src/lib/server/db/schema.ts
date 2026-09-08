@@ -16,6 +16,10 @@ export const user = sqliteTable('user', {
 	// student id, so it is stamped once at sign-in and never guessed again.
 	username: text('username'),
 	role: text('role').notNull().default('player'),
+	// Promoted by an admin to see their own target's whole file — the map and
+	// timetable, the way an admin sees anybody's — without any of the rest of
+	// the game's machinery. Their target, and only their target.
+	scout: integer('scout', { mode: 'boolean' }).notNull().default(false),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 	updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull()
 });

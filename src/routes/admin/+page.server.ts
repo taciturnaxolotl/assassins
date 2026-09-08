@@ -48,6 +48,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					email: schema.user.email,
 					username: schema.user.username,
 					image: schema.user.image,
+					scout: schema.user.scout
 				}
 			})
 			.from(schema.claim)
@@ -281,6 +282,22 @@ export const actions: Actions = {
 			return fail(502, { message: (e as Error).message });
 		}
 		redirect(303, '/admin?sync');
+	},
+
+	// Promote or demote a player to seeing their own target's whole file.
+	scout: async ({ request, locals }) => {
+		guard(locals);
+		const form = await request.formData();
+		const userId = String(form.get('userId') ?? '');
+		const on = form.get('on') === '1';
+		if (!userId) return fail(400, { message: 'Which account?' });
+		await locals.db
+			.update(schema.user)
+			.set({ scout: on, updatedAt: new Date() })
+			.where(eq(schema.user.id, userId));
+		return {
+			message: on ? 'Promoted. They see their target in full.' : 'Back to the public view.'
+		};
 	},
 
 	// A snipe the reader would not decide on its own.

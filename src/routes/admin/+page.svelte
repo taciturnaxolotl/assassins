@@ -453,7 +453,7 @@
 		{:else}
 			<div class="scroller"><table class="sheet">
 				<thead>
-					<tr><th>Account</th><th>Plays as</th><th>Plan</th><th>Decided</th><th></th></tr>
+					<tr><th>Account</th><th>Plays as</th><th>Scout</th><th>Decided</th><th></th></tr>
 				</thead>
 				<tbody>
 					{#each settled as r (r.userId)}
@@ -468,6 +468,22 @@
 								{#if r.verdict}<div class="legal">{r.verdict}</div>{/if}
 							</td>
 							<td>
+								{#if r.status === 'approved' && r.gmId}
+									<form method="POST" action="?/scout" use:enhance>
+										<input type="hidden" name="userId" value={r.userId} />
+										<input type="hidden" name="on" value={r.user.scout ? '0' : '1'} />
+										<Button
+											size="sm"
+											variant={r.user.scout ? 'default' : 'ghost'}
+											type="submit"
+											title={r.user.scout
+												? 'Sees their target in full — click to undo'
+												: 'Let them see their target in full'}
+										>
+											{r.user.scout ? 'scout ✓' : 'promote'}
+										</Button>
+									</form>
+								{/if}
 							</td>
 							<td class="legal">{r.decidedAt ? when(r.decidedAt) : ''}</td>
 							<td class="tools">
