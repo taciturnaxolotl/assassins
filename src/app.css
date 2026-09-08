@@ -1,0 +1,238 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* The dossier's palette. Warm near-black, one blood red that means "hostile",
+   one green that means "you". Everything else is a step on the ink ramp. */
+:root {
+	--color-ink: oklch(96% 0.01 80);
+	--color-dim: oklch(66% 0.015 80);
+	--color-faint: oklch(46% 0.015 80);
+	--color-bg: oklch(16% 0.008 60);
+	--color-panel: oklch(20% 0.01 60);
+	--color-line: oklch(28% 0.012 60);
+	--color-blood: oklch(58% 0.19 25);
+	--color-live: oklch(72% 0.14 150);
+	--color-warn: oklch(78% 0.13 85);
+	--color-sunk: oklch(13% 0.006 60);
+
+	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
+	--font-serif: 'Instrument Serif', Georgia, serif;
+
+	/* shadcn's components are written against these names. Pointing them at the
+	   palette is the entire theming step: a Select or a Sheet then arrives
+	   already dressed, instead of grey and needing to be argued with. */
+	--background: var(--color-bg);
+	--foreground: var(--color-ink);
+	--card: var(--color-panel);
+	--card-foreground: var(--color-ink);
+	--popover: var(--color-panel);
+	--popover-foreground: var(--color-ink);
+	--primary: var(--color-blood);
+	--primary-foreground: oklch(97% 0.01 60);
+	--secondary: var(--color-line);
+	--secondary-foreground: var(--color-ink);
+	--muted: var(--color-line);
+	--muted-foreground: var(--color-faint);
+	--accent: var(--color-line);
+	--accent-foreground: var(--color-ink);
+	--destructive: var(--color-blood);
+	--border: var(--color-line);
+	--input: var(--color-line);
+	--ring: var(--color-blood);
+	--radius: 3px;
+}
+
+@theme inline {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+
+	--font-sans: var(--font-mono);
+	--font-mono: var(--font-mono);
+
+	/* Sharp corners. The original app never rounded anything past 3px. */
+	--radius-sm: 2px;
+	--radius-md: 3px;
+	--radius-lg: 3px;
+	--radius-xl: 4px;
+}
+
+@layer base {
+	* {
+		box-sizing: border-box;
+		margin: 0;
+	}
+
+	body {
+		background: var(--color-bg);
+		color: var(--color-ink);
+		font: 400 13px/1.5 var(--font-mono);
+		-webkit-font-smoothing: antialiased;
+	}
+
+	::selection {
+		background: var(--color-blood);
+		color: var(--color-ink);
+	}
+
+	h1,
+	h2 {
+		font-family: var(--font-serif);
+		font-weight: 400;
+	}
+}
+
+/* ── shared furniture ───────────────────────────────────────────────────── */
+
+@layer components {
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+	}
+
+	/* A section heading: small, spaced, ruled off. Used everywhere. */
+	.rule {
+		font: 500 11px/1 var(--font-mono);
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--color-faint);
+		margin: 22px 0 9px;
+		padding-bottom: 6px;
+		border-bottom: 1px solid var(--color-line);
+	}
+
+	.block {
+		margin-bottom: 26px;
+	}
+	.block > .rule {
+		margin-top: 0;
+	}
+
+	.field {
+		width: 100%;
+		font: 400 12px/1.4 var(--font-mono);
+		color: var(--color-ink);
+		background: var(--color-bg);
+		border: 1px solid var(--color-line);
+		border-radius: 2px;
+		padding: 8px 10px;
+	}
+	.field:focus {
+		outline: 0;
+		border-color: var(--color-blood);
+	}
+	textarea.field {
+		min-height: 76px;
+		resize: vertical;
+		line-height: 1.5;
+	}
+
+	.empty {
+		color: var(--color-faint);
+		font-style: italic;
+		font-family: var(--font-serif);
+		font-size: 18px;
+	}
+
+	.legal {
+		color: var(--color-faint);
+		font-size: 11px;
+	}
+
+	.faint {
+		color: var(--color-faint);
+	}
+
+	/* Tables carry most of the app's information, so they get real styling. */
+	.sheet {
+		width: 100%;
+		border-collapse: collapse;
+		font-variant-numeric: tabular-nums;
+	}
+	.sheet th {
+		text-align: left;
+		font: 500 10px/1 var(--font-mono);
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--color-faint);
+		padding: 0 10px 7px 0;
+	}
+	.sheet td {
+		padding: 6px 10px 6px 0;
+		border-top: 1px solid var(--color-line);
+		vertical-align: top;
+	}
+	.sheet tr.gone td {
+		opacity: 0.4;
+	}
+	.sheet td.place {
+		color: var(--color-dim);
+	}
+	.sheet td.code {
+		color: var(--color-blood);
+	}
+	.sheet tr.tight td {
+		color: var(--color-blood);
+	}
+
+	.who {
+		cursor: pointer;
+		text-decoration: underline dotted
+			color-mix(in oklch, var(--color-faint) 80%, transparent);
+		background: none;
+		border: 0;
+		padding: 0;
+		font: inherit;
+		color: inherit;
+		text-align: left;
+	}
+	.who:hover {
+		color: var(--color-blood);
+	}
+	.who.gone {
+		text-decoration-line: underline line-through;
+		opacity: 0.55;
+	}
+
+	.fold {
+		border-top: 1px solid var(--color-line);
+	}
+	.fold > summary {
+		cursor: pointer;
+		padding: 8px 0;
+		color: var(--color-dim);
+		list-style: none;
+	}
+	.fold > summary::-webkit-details-marker {
+		display: none;
+	}
+	.fold > summary::before {
+		content: '▸ ';
+		color: var(--color-blood);
+	}
+	.fold[open] > summary::before {
+		content: '▾ ';
+	}
+	.fold > summary:hover {
+		color: var(--color-ink);
+	}
+	.fold .sheet {
+		margin-bottom: 14px;
+	}
+}

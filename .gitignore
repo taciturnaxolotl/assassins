@@ -1,0 +1,21 @@
+node_modules
+
+# Output
+.output
+.svelte-kit
+.wrangler
+build
+
+# Scraped rosters, the directory join, the campus cache. Real people.
+data/
+src/worker-configuration.d.ts
+
+# OS
+.DS_Store
+
+# Secrets. Wrangler reads .dev.vars in dev; production uses
+# `wrangler secret put`.
+.dev.vars
+.env
+.env.*
+!.env.example

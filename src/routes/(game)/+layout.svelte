@@ -1,0 +1,188 @@
+<script lang="ts">
+	import { untrack } from 'svelte';
+	import { page } from '$app/state';
+	import { Game, provide } from '$lib/game/store.svelte';
+	import { DAYS, hhmm } from '$lib/game/time';
+	import PlayerSheet from '$lib/components/PlayerSheet.svelte';
+
+	let { data, children } = $props();
+
+	const g = new Game(untrack(() => data));
+	provide(g);
+
+	// The server is the source of truth; a navigation refills the store rather
+	// than leaving two copies to disagree.
+	$effect(() => g.absorb(data));
+
+	$effect(() => {
+		const t = setInterval(() => (g.now = new Date()), 30_000);
+		return () => clearInterval(t);
+	});
+
+	const TABS = [
+		['/target', 'Target'],
+		['/jobs', 'Jobs'],
+		['/roster', 'Roster'],
+		['/campus', 'Campus']
+	] as const;
+
+	// The board is how somebody without a subscription gets into a dossier at
+	// all, so it is never behind the lock.
+	const ALWAYS = new Set(['/target', '/jobs']);
+
+	const locked = $derived(!g.unlocked);
+	const waiting = $derived(g.tier === 'pending');
+</script>
+
+<header>
+	<h1>Assassins <span class="year">26</span></h1>
+	<div class="tally">{g.living} alive / {g.roster.length} · {g.term}</div>
+
+	<nav>
+		{#each TABS as [href, label] (href)}
+			{@const off = locked && !ALWAYS.has(href)}
+			<a {href} class:on={page.url.pathname === href} class:off aria-disabled={off}>
+				{label}{#if off}<span class="lock">·</span>{/if}
+			</a>
+		{/each}
+		{#if g.isAdmin}
+			<a href="/chain" class:on={page.url.pathname === '/chain'}>Chain</a>
+		{/if}
+	</nav>
+
+	<div class="right">
+		<span class="clock">{DAYS[g.day]} {hhmm(g.minutes)}</span>
+		{#if g.isAdmin}<a class="admin" href="/admin">queue</a>{/if}
+		<form method="POST" action="/auth/signout">
+			<button class="out" type="submit">sign out</button>
+		</form>
+	</div>
+</header>
+
+{#if locked}
+	<div class="strip">
+		<span>
+			{#if waiting}
+				Your claim is in the queue. You can file your draw now; the roster opens
+				once somebody confirms it is you.
+			{:else}
+				This account can report but not read.
+				<a href="/upgrade">Unlock the dossiers</a> for schedules, dorms and the map.
+			{/if}
+		</span>
+	</div>
+{/if}
+
+<main>
+	{@render children()}
+</main>
+
+<PlayerSheet />
+
+<style>
+	header {
+		position: sticky;
+		top: 0;
+		z-index: 5;
+		display: flex;
+		align-items: baseline;
+		gap: 20px;
+		padding: 14px 22px;
+		background: color-mix(in oklch, var(--color-bg) 88%, transparent);
+		backdrop-filter: blur(10px);
+		border-bottom: 1px solid var(--color-line);
+	}
+	h1 {
+		font: 400 30px/1 var(--font-serif);
+	}
+	.year {
+		color: var(--color-blood);
+		font-style: italic;
+	}
+	.tally {
+		color: var(--color-faint);
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		font-size: 11px;
+	}
+
+	nav {
+		display: flex;
+		gap: 2px;
+	}
+	nav a {
+		font: 400 11px/1 var(--font-mono);
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--color-faint);
+		border-bottom: 2px solid transparent;
+		padding: 8px 10px;
+	}
+	nav a:hover {
+		color: var(--color-ink);
+	}
+	nav a.on {
+		color: var(--color-blood);
+		border-bottom-color: var(--color-blood);
+	}
+	nav a.off {
+		opacity: 0.45;
+	}
+	.lock {
+		color: var(--color-warn);
+		margin-left: 4px;
+	}
+
+	.right {
+		margin-left: auto;
+		display: flex;
+		align-items: baseline;
+		gap: 14px;
+	}
+	.clock {
+		color: var(--color-dim);
+		font-variant-numeric: tabular-nums;
+	}
+	.admin,
+	.out {
+		font: 400 10px/1 var(--font-mono);
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--color-faint);
+		background: none;
+		border: 0;
+		padding: 0;
+		cursor: pointer;
+	}
+	.admin:hover,
+	.out:hover {
+		color: var(--color-blood);
+	}
+
+	.strip {
+		padding: 9px 22px;
+		font-size: 11px;
+		color: var(--color-warn);
+		background: color-mix(in oklch, var(--color-warn) 9%, var(--color-bg));
+		border-bottom: 1px solid color-mix(in oklch, var(--color-warn) 25%, transparent);
+	}
+	.strip a {
+		color: var(--color-warn);
+		text-decoration: underline;
+	}
+
+	main {
+		padding: 22px;
+	}
+
+	@media (max-width: 780px) {
+		header {
+			flex-wrap: wrap;
+			gap: 10px 16px;
+		}
+		.right {
+			width: 100%;
+			margin-left: 0;
+		}
+	}
+</style>

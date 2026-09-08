@@ -2,7 +2,28 @@
 
 the ultimate platform for running games of assassin
 
-The canonical repo for this is hosted on tangled over at [`https://tangled.org/dunkirk.sh/assassins`](https://tangled.org/dunkirk.sh/assassins)
+## Run it
+
+```
+bun install
+bun scripts/fetch-map.mjs               # once — caches the campus from OSM
+bun scripts/pin-buildings.mjs --write   # once — the halls OSM is missing
+
+bunx wrangler d1 create assassins       # put the id in wrangler.jsonc
+bun run db:migrate                      # tables, locally
+bun run data                            # the join -> local D1
+
+cp .env.example .env               # fill in Google, and Polar if you want it
+bun run dev                             # http://localhost:5173
+```
+
+Deploying:
+
+```
+bun run db:migrate:remote
+bun run data:remote
+bun run deploy
+```
 
 <p align="center">
     <img src="https://raw.githubusercontent.com/taciturnaxolotl/carriage/main/.github/images/line-break.svg" />

@@ -1,0 +1,74 @@
+<script lang="ts">
+	// What a free account sees instead of a dossier. It states the size of what
+	// it is withholding and stops; there is no pitch to make to somebody who
+	// already knows what the app is for.
+	import { buttonVariants } from '$lib/components/ui/button';
+	import * as Table from '$lib/components/ui/table';
+	import type { Teaser } from '$lib/server/data';
+
+	let { name, teaser }: { name: string; teaser?: Teaser | null } = $props();
+
+	const rows = $derived(
+		teaser
+			? ([
+					['Photos', teaser.shots],
+					['Sections this term', teaser.sections],
+					['Meetings a week', teaser.meetings],
+					['Buildings they sit in', teaser.buildings]
+				].filter(([, n]) => (n as number) > 0) as [string, number][])
+			: []
+	);
+</script>
+
+<div class="locked">
+	<h2>{name}</h2>
+	<p>
+		Their file is built and this account cannot read it. Reporting your draw
+		and your kills is free; the dossiers are not.
+	</p>
+
+	{#if rows.length}
+		<div class="tally">
+			<Table.Root>
+				<Table.Body>
+					{#each rows as [label, n] (label)}
+						<Table.Row>
+							<Table.Cell class="text-[var(--color-faint)]">{label}</Table.Cell>
+							<Table.Cell class="text-right">{n}</Table.Cell>
+						</Table.Row>
+					{/each}
+					{#if teaser?.knowsDorm}
+						<Table.Row>
+							<Table.Cell class="text-[var(--color-faint)]">Hall and room</Table.Cell>
+							<Table.Cell class="text-right">yes</Table.Cell>
+						</Table.Row>
+					{/if}
+					{#if teaser?.knowsHometown}
+						<Table.Row>
+							<Table.Cell class="text-[var(--color-faint)]">Hometown</Table.Cell>
+							<Table.Cell class="text-right">yes</Table.Cell>
+						</Table.Row>
+					{/if}
+				</Table.Body>
+			</Table.Root>
+		</div>
+	{/if}
+
+	<a class={buttonVariants()} href="/upgrade">Unlock the dossiers</a>
+</div>
+
+<style>
+	h2 {
+		font: 400 30px/1.05 var(--font-serif);
+	}
+	p {
+		color: var(--color-dim);
+		line-height: 1.65;
+		margin: 10px 0 20px;
+		max-width: 48ch;
+	}
+	.tally {
+		max-width: 340px;
+		margin-bottom: 22px;
+	}
+</style>
