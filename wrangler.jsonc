@@ -11,9 +11,10 @@
 		"directory": ".svelte-kit/cloudflare"
 	},
 	"observability": { "enabled": true },
-	// Workers Builds runs `wrangler deploy` directly rather than a package
-	// script, and `main` below does not exist until Vite has run. Without this
-	// the deploy fails looking for a file the build was never asked to make.
+	// `main` below does not exist until Vite has run, so a bare `wrangler deploy`
+	// would look for a file nothing was asked to make. Note this covers the
+	// command line only: Workers Builds explicitly ignores custom builds in the
+	// Wrangler config, and needs the same command set in its own settings.
 	"build": { "command": "bun run build" },
 	"d1_databases": [
 		{
