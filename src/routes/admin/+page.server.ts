@@ -7,13 +7,22 @@
 // residue: the four players the build could never resolve, free agents who
 // assert no identity at all, and kills that only two people witnessed.
 
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { mayWrite } from '$lib/server/access';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { schema } from '$lib/server/db';
 import { exists, roster } from '$lib/server/data';
 import { clearKill, confirmKill, loadChain, pendingKills, setKill } from '$lib/server/game';
-import { enabled as groupmeOn, killProposals, markSeen } from '$lib/server/groupme';
+import {
+	enabled as groupmeOn,
+	snipesEnabled,
+	killProposals,
+	readSnipes,
+	syncSnipes,
+	keepSnipe,
+	dropSnipe,
+	markSeen
+} from '$lib/server/groupme';
 import { targetOf } from '$lib/game/chain';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -71,17 +80,52 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// asked for rather than on every page load.
 	const syncing = url.searchParams.has('sync');
 	let proposals: Awaited<ReturnType<typeof killProposals>> = [];
+	let snipes: Awaited<ReturnType<typeof readSnipes>> = [];
 	let syncError: string | null = null;
 	if (syncing) {
 		try {
-			proposals = await killProposals(db, locals.env);
+			[proposals, snipes] = await Promise.all([
+				groupmeOn(locals.env) ? killProposals(db, locals.env) : [],
+				readSnipes(db, locals.env)
+			]);
 		} catch (e) {
 			syncError = (e as Error).message;
 		}
 	}
 
+	// What filed itself, so an automatic mistake is visible rather than silent.
+	const auto = await db
+		.select()
+		.from(schema.groupmeSeen)
+		.where(and(eq(schema.groupmeSeen.kind, 'snipe'), eq(schema.groupmeSeen.outcome, 'auto')))
+		.orderBy(desc(schema.groupmeSeen.decidedAt))
+		.limit(12);
+	const autoPhotos = auto.length
+		? await db
+				.select()
+				.from(schema.extraPhoto)
+				.where(inArray(schema.extraPhoto.id, auto.map((a) => `snipe:${a.messageId}`)))
+		: [];
+	const filed = auto
+		.map((a) => {
+			const photo = autoPhotos.find((p) => p.id === `snipe:${a.messageId}`);
+			return photo
+				? { messageId: a.messageId, at: a.decidedAt, url: photo.url, of: who(photo.gmId) ?? photo.gmId }
+				: null;
+		})
+		.filter((x) => x !== null);
+
 	return {
-		groupme: { on: groupmeOn(locals.env), synced: syncing, proposals, error: syncError },
+		groupme: {
+			on: groupmeOn(locals.env) || snipesEnabled(locals.env),
+			kills: groupmeOn(locals.env),
+			snipesOn: snipesEnabled(locals.env),
+			synced: syncing,
+			proposals,
+			snipes,
+			filed,
+			error: syncError
+		},
 		needs: {
 			claims: rows.filter((r) => r.status === 'pending'),
 			// Until a kill is confirmed the victim is still hunting and the killer
@@ -219,6 +263,49 @@ export const actions: Actions = {
 		}
 		await markSeen(locals.db, messageId, 'confirmed', admin.id);
 		return { message: 'Recorded from GroupMe.' };
+	},
+
+	// Reading the topics files the unambiguous snipes, so it is a POST. As a
+	// link it would fire on SvelteKit's hover-prefetch and file photographs
+	// nobody asked it to.
+	syncGroupMe: async ({ locals }) => {
+		const admin = guard(locals);
+		try {
+			const { filed } = await syncSnipes(locals.db, locals.env, admin.id);
+			if (filed.length) console.log(`[groupme] filed ${filed.length} snipes`);
+		} catch (e) {
+			return fail(502, { message: (e as Error).message });
+		}
+		redirect(303, '/admin?sync');
+	},
+
+	// A snipe the reader would not decide on its own.
+	snipe: async ({ request, locals }) => {
+		const admin = guard(locals);
+		const form = await request.formData();
+		const messageId = String(form.get('messageId') ?? '');
+		const gmId = String(form.get('gmId') ?? '');
+		const image = String(form.get('image') ?? '');
+		if (!messageId) return fail(400, { message: 'Which message?' });
+
+		if (form.get('verdict') !== 'confirm') {
+			await markSeen(locals.db, messageId, 'ignored', admin.id, 'snipe');
+			return { message: 'Left alone.' };
+		}
+		if (!gmId) return fail(400, { message: 'Say who it is of.' });
+		if (!image.startsWith('http')) return fail(400, { message: 'No photograph on it.' });
+
+		await keepSnipe(locals.db, { messageId, gmId, image }, admin.id);
+		return { message: 'Filed.' };
+	},
+
+	unfileSnipe: async ({ request, locals }) => {
+		guard(locals);
+		const form = await request.formData();
+		const messageId = String(form.get('messageId') ?? '');
+		if (!messageId) return fail(400, { message: 'Which message?' });
+		await dropSnipe(locals.db, messageId);
+		return { message: 'Taken back off. The next read will offer it again.' };
 	},
 
 	comp: async ({ request, locals }) => {

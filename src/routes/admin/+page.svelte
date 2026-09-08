@@ -15,6 +15,8 @@
 	let picked = $state<Record<string, { killer?: string; victim?: string }>>({});
 	const choose = (id: string, side: 'killer' | 'victim', v: string) =>
 		(picked = { ...picked, [id]: { ...picked[id], [side]: v } });
+	// Who an admin says a queued snipe is of, before filing it.
+	let sniped = $state<Record<string, string>>({});
 	let q = $state('');
 
 	const waiting = $derived(data.needs.claims.length + data.needs.kills.length);
@@ -67,11 +69,15 @@
 			{#if !data.groupme.synced}
 				<p class="legal">
 					People announce kills in GroupMe long before they think to open this.
-					Reading the topic asks GroupMe for the last sixty messages.
+					Reading asks GroupMe for the last sixty messages in each topic. Snipes
+					that are a name and a photograph and nothing else file themselves; the
+					rest wait here.
 				</p>
-				<Button class="mt-3" href="/admin?sync">Read the kills topic</Button>
+				<form method="POST" action="?/syncGroupMe" use:enhance>
+					<Button class="mt-3" type="submit">Read the topics</Button>
+				</form>
 			{:else if !data.groupme.proposals.length}
-				<p class="empty">Nothing in there that has not been dealt with.</p>
+				<p class="empty">Nothing in the kills topic that has not been dealt with.</p>
 			{:else}
 				<p class="legal">
 					The sender is certain; the victim is a guess, and the message is
@@ -141,6 +147,78 @@
 					{/each}
 				</div>
 			{/if}
+		</section>
+	{/if}
+
+	{#if data.groupme.snipesOn && data.groupme.synced && data.groupme.snipes.length}
+		<section>
+			<h2 class="rule">Snipes — {data.groupme.snipes.length}</h2>
+			<p class="legal">
+				These said more than a name, so the reader would not file them on its
+				own. Say who is in the photograph, or leave it.
+			</p>
+			<div class="rows">
+				{#each data.groupme.snipes as s (s.messageId)}
+					<article class="row act">
+						<div class="story">
+							<img class="proof" src={s.image} alt="" loading="lazy" />
+							{#if s.text}<p class="quote">“{s.text}”</p>{/if}
+							<div class="legal">{s.sniper} · {when(s.at)} · {s.basis}</div>
+						</div>
+						<form method="POST" action="?/snipe" use:enhance class="read">
+							<input type="hidden" name="messageId" value={s.messageId} />
+							<input type="hidden" name="image" value={s.image} />
+							<input type="hidden" name="gmId" value={sniped[s.messageId] ?? s.gmId ?? ''} />
+							<div class="who">
+								<PlayerCombobox
+									options={data.roster}
+									value={sniped[s.messageId] ?? s.gmId ?? ''}
+									placeholder="Who is in it"
+									onpick={(v) => (sniped = { ...sniped, [s.messageId]: v })}
+								/>
+							</div>
+							<div class="pair">
+								<Button
+									size="sm"
+									name="verdict"
+									value="confirm"
+									type="submit"
+									disabled={!(sniped[s.messageId] ?? s.gmId)}
+								>
+									File it
+								</Button>
+								<Button size="sm" variant="outline" name="verdict" value="ignore" type="submit">
+									Not a snipe
+								</Button>
+							</div>
+						</form>
+					</article>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
+	{#if data.groupme.filed.length}
+		<section>
+			<h2 class="rule">Filed on sight</h2>
+			<p class="legal">
+				A name and a photograph and nothing else, so these went straight onto the
+				person they name. Take one back off and the next read will offer it again.
+			</p>
+			<div class="filed">
+				{#each data.groupme.filed as f (f.messageId)}
+					<figure>
+						<img src={f.url} alt="" loading="lazy" />
+						<figcaption>
+							<span>{f.of}</span>
+							<form method="POST" action="?/unfileSnipe" use:enhance>
+								<input type="hidden" name="messageId" value={f.messageId} />
+								<button type="submit">undo</button>
+							</form>
+						</figcaption>
+					</figure>
+				{/each}
+			</div>
 		</section>
 	{/if}
 
@@ -538,6 +616,52 @@
 		font-family: var(--font-serif);
 		font-size: 15px;
 		color: var(--color-dim);
+	}
+
+	/* Filed snipes read as a contact sheet: small, dense, and every one of them
+	   an undo away. */
+	.filed {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+		gap: 10px;
+	}
+	.filed figure {
+		margin: 0;
+		border: 1px solid var(--color-line);
+		border-radius: 3px;
+		overflow: hidden;
+		background: var(--color-panel);
+	}
+	.filed img {
+		width: 100%;
+		aspect-ratio: 1;
+		object-fit: cover;
+		display: block;
+	}
+	.filed figcaption {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 6px;
+		padding: 5px 7px;
+		font-size: 11px;
+	}
+	.filed figcaption span {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.filed figcaption button {
+		background: none;
+		border: 0;
+		padding: 0;
+		color: var(--color-dim);
+		cursor: pointer;
+		text-decoration: underline;
+		font: inherit;
+	}
+	.filed figcaption button:hover {
+		color: var(--color-blood);
 	}
 
 	.acts {

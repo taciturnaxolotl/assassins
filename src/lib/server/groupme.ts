@@ -1,4 +1,4 @@
-// Reading the kills topic.
+// Reading the kills and snipes topics.
 //
 // People announce kills in GroupMe long before anybody thinks to open this, so
 // the announcements are the real record and the queue is better built from
@@ -20,8 +20,15 @@
 // in a message, guesses which is which, and hands the message to a person along
 // with its guess. Parsing prose into game state is the sort of thing that is
 // right nine times in ten and infuriating the tenth.
+//
+// Snipes are the other way round. The snipes topic is open, so the sender is
+// the sniper, and the photograph is the point rather than the evidence. A snipe
+// only has to say who is in the picture, so the common post is a name and an
+// image and nothing else. That much is unambiguous enough to file on sight;
+// anything with more words in it is a person making a claim, and goes to a
+// human. See `readSnipe`.
 
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { DB } from './db';
 import { schema } from './db';
 import type { Env } from './auth';
@@ -29,8 +36,9 @@ import { roster } from './data';
 import { loadChain } from './game';
 import { targetOf } from '$lib/game/chain';
 
-/** Without a token and a topic the whole feature is simply absent. */
+/** Without a token and a topic the feature is simply absent. */
 export const enabled = (env: Env) => !!(env.GROUPME_TOKEN && env.GROUPME_KILLS_TOPIC);
+export const snipesEnabled = (env: Env) => !!(env.GROUPME_TOKEN && env.GROUPME_SNIPES_TOPIC);
 
 export type Message = {
 	id: string;
@@ -42,10 +50,8 @@ export type Message = {
 	image: string | null;
 };
 
-async function fetchMessages(env: Env, limit = 60): Promise<Message[]> {
-	const url = new URL(
-		`https://api.groupme.com/v3/groups/${env.GROUPME_KILLS_TOPIC}/messages`
-	);
+async function fetchMessages(env: Env, topic: string, limit = 60): Promise<Message[]> {
+	const url = new URL(`https://api.groupme.com/v3/groups/${topic}/messages`);
 	url.searchParams.set('limit', String(limit));
 	// Omit this and attachments come back stripped. Undocumented; from the
 	// decompiled client.
@@ -55,7 +61,7 @@ async function fetchMessages(env: Env, limit = 60): Promise<Message[]> {
 	if (!res.ok)
 		throw new Error(
 			res.status === 404
-				? 'GroupMe says no such topic. Check GROUPME_KILLS_TOPIC is the topic id, not the parent group.'
+				? 'GroupMe says no such topic. Check the topic id is the topic, not the parent group.'
 				: `GroupMe answered ${res.status}.`
 		);
 
@@ -136,7 +142,7 @@ export async function killProposals(db: DB, env: Env): Promise<Proposal[]> {
 	if (!enabled(env)) return [];
 
 	const [messages, cards, chain] = await Promise.all([
-		fetchMessages(env),
+		fetchMessages(env, env.GROUPME_KILLS_TOPIC!),
 		roster(db),
 		loadChain(db)
 	]);
@@ -197,11 +203,160 @@ export async function killProposals(db: DB, env: Env): Promise<Proposal[]> {
 	return out.sort((a, b) => b.at.getTime() - a.at.getTime());
 }
 
-export const markSeen = (db: DB, messageId: string, outcome: string, userId: string) =>
+export const markSeen = (
+	db: DB,
+	messageId: string,
+	outcome: string,
+	userId: string | null,
+	kind = 'kill'
+) =>
 	db
 		.insert(schema.groupmeSeen)
-		.values({ messageId, outcome, decidedBy: userId, decidedAt: new Date() })
+		.values({ messageId, kind, outcome, decidedBy: userId, decidedAt: new Date() })
 		.onConflictDoUpdate({
 			target: schema.groupmeSeen.messageId,
 			set: { outcome, decidedBy: userId, decidedAt: new Date() }
 		});
+
+// ─── snipes ─────────────────────────────────────────────────────────────────
+
+export type Snipe = {
+	messageId: string;
+	at: Date;
+	text: string;
+	/** The snipes topic is open, so the sender really is the sniper. */
+	sniper: string;
+	image: string;
+	gmId: string | null;
+	/** Whether this filed itself, and on what grounds. */
+	filed: boolean;
+	basis: string;
+};
+
+/**
+ * Who a snipe says it is of, when it says nothing else.
+ *
+ * The whole text has to be the name. A leading or trailing dash is the one
+ * flourish allowed, because "- Noelle Batcheller" is how half the group signs a
+ * photograph. Everything past that — a verb, a second name, an @mention, a
+ * word of gloating — means somebody is making a claim rather than labelling a
+ * picture, and claims go to a person.
+ *
+ * A bare first name counts only when exactly one player answers to it. There
+ * are two Silases in this game.
+ */
+function soleName(text: string, cards: { gmId: string; name: string }[]) {
+	const bare = text
+		.replace(/^[\s\p{Pd}]+/u, '')
+		.replace(/[\s\p{Pd}.!]+$/u, '')
+		.toLowerCase();
+	if (!bare) return null;
+
+	const full = cards.filter((c) => c.name.toLowerCase() === bare);
+	if (full.length === 1) return full[0].gmId;
+
+	const first = cards.filter((c) => c.name.split(/\s+/)[0].toLowerCase() === bare);
+	return first.length === 1 ? first[0].gmId : null;
+}
+
+/** Read the snipes topic. Anything without a photograph is chatter, not a snipe. */
+export async function readSnipes(db: DB, env: Env): Promise<Snipe[]> {
+	if (!snipesEnabled(env)) return [];
+
+	const [messages, cards] = await Promise.all([
+		fetchMessages(env, env.GROUPME_SNIPES_TOPIC!),
+		roster(db)
+	]);
+
+	const seen = new Set(
+		messages.length
+			? (
+					await db
+						.select({ id: schema.groupmeSeen.messageId })
+						.from(schema.groupmeSeen)
+						.where(inArray(schema.groupmeSeen.messageId, messages.map((m) => m.id)))
+				).map((r) => r.id)
+			: []
+	);
+
+	const out: Snipe[] = [];
+	for (const m of messages) {
+		if (seen.has(m.id) || !m.image) continue;
+
+		const sole = soleName(m.text, cards);
+		if (sole)
+			out.push({
+				messageId: m.id,
+				at: m.at,
+				text: m.text,
+				sniper: m.name,
+				image: m.image,
+				gmId: sole,
+				filed: true,
+				basis: 'a name and a photograph, and nothing else to read'
+			});
+		else {
+			// Still worth a guess for whoever looks at it, but only a guess.
+			const named = namesIn(m.text, cards);
+			out.push({
+				messageId: m.id,
+				at: m.at,
+				text: m.text,
+				sniper: m.name,
+				image: m.image,
+				gmId: named[0] ?? null,
+				filed: false,
+				basis: !m.text.trim()
+					? 'a photograph with nothing said about it'
+					: named.length === 1
+						? 'one name, said among other things'
+						: named.length > 1
+							? `${named.length} names in one message`
+							: 'nothing in it matches the roster'
+			});
+		}
+	}
+
+	return out.sort((a, b) => b.at.getTime() - a.at.getTime());
+}
+
+/** File a snipe photograph against the person it is of. */
+export async function keepSnipe(
+	db: DB,
+	snipe: { messageId: string; gmId: string; image: string },
+	userId: string | null,
+	auto = false
+) {
+	await db
+		.insert(schema.extraPhoto)
+		.values({
+			id: `snipe:${snipe.messageId}`,
+			gmId: snipe.gmId,
+			url: snipe.image,
+			source: 'snipes topic',
+			addedBy: userId,
+			addedAt: new Date()
+		})
+		.onConflictDoNothing();
+	await markSeen(db, snipe.messageId, auto ? 'auto' : 'confirmed', userId, 'snipe');
+}
+
+/** Undo one, whoever filed it, so an automatic mistake is one click deep. */
+export async function dropSnipe(db: DB, messageId: string) {
+	await db.delete(schema.extraPhoto).where(eq(schema.extraPhoto.id, `snipe:${messageId}`));
+	await db.delete(schema.groupmeSeen).where(eq(schema.groupmeSeen.messageId, messageId));
+}
+
+/**
+ * Read the topic, file the unambiguous ones, hand back the rest.
+ *
+ * Filing on sight is only defensible because the bar is so high: the message
+ * has to be a roster name and a photograph and nothing besides. Everything that
+ * clears it is reversible with `dropSnipe`.
+ */
+export async function syncSnipes(db: DB, env: Env, userId: string | null) {
+	const all = await readSnipes(db, env);
+	const filed = all.filter((s) => s.filed && s.gmId);
+	for (const s of filed) await keepSnipe(db, { ...s, gmId: s.gmId! }, userId, true);
+	return { filed, queued: all.filter((s) => !s.filed) };
+}

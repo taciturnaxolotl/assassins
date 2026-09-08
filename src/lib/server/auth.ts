@@ -41,6 +41,7 @@ export type Env = {
 	GROUPME_TOKEN?: string;
 	GROUPME_GROUP?: string;
 	GROUPME_KILLS_TOPIC?: string;
+	GROUPME_SNIPES_TOPIC?: string;
 };
 
 /** The origin to build public URLs from, which is not always the one we saw. */
