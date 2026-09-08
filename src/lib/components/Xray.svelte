@@ -49,7 +49,7 @@
 	>
 		<button class="x" onclick={onclose} aria-label="close">✕</button>
 		<h2>X-RAY</h2>
-		<p class="sub">A student id, and the timetable it keeps.</p>
+		<p class="sub">Show me allllll the data; but first give me the id of the person to look up.</p>
 
 		<form
 			onsubmit={(e) => {
