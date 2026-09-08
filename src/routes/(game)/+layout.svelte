@@ -40,16 +40,21 @@
 
 	const waiting = $derived(g.tier === 'pending');
 
-	// Tap the wordmark seven times, quickly, and the x-ray opens. The run resets
+	// Tap the wordmark five times, quickly, and the x-ray opens. The run resets
 	// if you dawdle, so it takes a bit of intent rather than an idle finger.
 	let taps = 0;
 	let last = 0;
 	let xray = $state(false);
+	// Retriggers the CSS bounce: the class comes off between taps so a rapid run
+	// of them each get their own hop rather than one long-held press.
+	let hop = $state(false);
 	function knock() {
 		const now = performance.now();
 		taps = now - last < 600 ? taps + 1 : 1;
 		last = now;
-		if (taps >= 7) {
+		hop = false;
+		requestAnimationFrame(() => (hop = true));
+		if (taps >= 5) {
 			taps = 0;
 			xray = true;
 		}
@@ -66,7 +71,9 @@
 
 <header>
 	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-	<h1 onclick={knock}>Assassins <span class="year">26</span></h1>
+	<h1 onclick={knock} class:hop onanimationend={() => (hop = false)}>
+		Assassins <span class="year">26</span>
+	</h1>
 	<div class="tally">{g.living} alive / {g.roster.length} · {g.term}</div>
 
 	<nav>
@@ -122,6 +129,24 @@
 		font: 400 30px/1 var(--font-serif);
 		cursor: default;
 		user-select: none;
+		transform-origin: left center;
+	}
+	/* A short squash-and-rise, so a tap on the wordmark visibly lands. */
+	h1.hop {
+		animation: hop 220ms ease-out;
+	}
+	@keyframes hop {
+		30% {
+			transform: translateY(2px) scale(0.96);
+		}
+		100% {
+			transform: none;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		h1.hop {
+			animation: none;
+		}
 	}
 	.year {
 		color: var(--color-blood);

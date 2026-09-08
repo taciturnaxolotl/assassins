@@ -152,6 +152,16 @@ export async function onePlayer(db: DB, gmId: string) {
 	return (await withExtras(db, [rehydrate(row)]))[0];
 }
 
+/** The full file for whoever holds a given student id, or null. The id is the
+ *  lock behind the wordmark, so the lookup is by it and nothing else. */
+export async function playerByStudentId(db: DB, studentId: string) {
+	const id = studentId.trim();
+	if (!id) return null;
+	const [row] = await db.select().from(P).where(eq(P.studentId, id)).limit(1);
+	if (!row) return null;
+	return (await withExtras(db, [rehydrate(row)]))[0];
+}
+
 export async function somePlayers(db: DB, gmIds: string[]) {
 	if (!gmIds.length) return [];
 	return withExtras(db, (await db.select().from(P).where(inArray(P.gmId, gmIds))).map(rehydrate));

@@ -1,17 +1,15 @@
 <script lang="ts">
-	// The secret behind the wordmark. Type a student id, get that person's
-	// timetable back. Nothing here decides who may look — the server does — but
-	// it is only ever mounted once the wordmark has been tapped enough to ask
-	// for it, so finding it is the first half of the puzzle.
-	import { DAYS, place } from '$lib/game/time';
-	import type { Course } from '$lib/game/types';
+	// The secret behind the wordmark. Give it a student id and it drops you onto
+	// that person's file with everything an admin would see drawn in — the map,
+	// the timetable, the lot. It resolves the id to a player and hands off to the
+	// page keyed by their gm id, carrying the id along as the key that unlocks it.
+	import { goto } from '$app/navigation';
 
 	let { onclose }: { onclose: () => void } = $props();
 
 	let id = $state('');
 	let busy = $state(false);
-	let asked = $state(false);
-	let found = $state<{ name: string; term: string; schedule: Course[] } | null>(null);
+	let missed = $state(false);
 	let field: HTMLInputElement | undefined = $state();
 
 	$effect(() => field?.focus());
@@ -20,15 +18,20 @@
 		const q = id.trim();
 		if (!q || busy) return;
 		busy = true;
+		missed = false;
 		try {
 			const r = await fetch('/api/xray', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ id: q })
 			});
-			const data = (await r.json()) as typeof found & { found: boolean };
-			found = data.found ? data : null;
-			asked = true;
+			const data = (await r.json()) as { found: boolean; gmId?: string };
+			if (data.found && data.gmId) {
+				onclose();
+				await goto(`/player/${data.gmId}?id=${encodeURIComponent(q)}`);
+			} else {
+				missed = true;
+			}
 		} finally {
 			busy = false;
 		}
@@ -63,31 +66,13 @@
 				inputmode="numeric"
 				autocomplete="off"
 				placeholder="student id"
-				oninput={() => (asked = false)}
+				oninput={() => (missed = false)}
 			/>
-			<button type="submit" disabled={busy || !id.trim()}>{busy ? '…' : 'pull'}</button>
+			<button type="submit" disabled={busy || !id.trim()}>{busy ? '…' : 'open'}</button>
 		</form>
 
-		{#if found}
-			<div class="out">
-				<div class="who">{found.name} · {found.term}</div>
-				{#each found.schedule as c (c.section)}
-					<div class="course">
-						<div class="code">{c.section}<span>{c.title ?? ''}</span></div>
-						{#each c.meets ?? [] as m, i (i)}
-							<div class="meet">
-								<span class="when">
-									{m.days.map((d) => DAYS[d]).join(' ')}
-									{m.start ?? ''}{m.start ? '–' : ''}{m.end ?? ''}
-								</span>
-								<span class="where">{place(m)}</span>
-							</div>
-						{/each}
-					</div>
-				{/each}
-			</div>
-		{:else if asked}
-			<p class="miss">Nothing on file for that id.</p>
+		{#if missed}
+			<p class="miss">Nobody by that id.</p>
 		{/if}
 	</div>
 </div>
@@ -106,8 +91,6 @@
 	.panel {
 		position: relative;
 		width: min(440px, 100%);
-		max-height: 76vh;
-		overflow: auto;
 		background: var(--color-panel);
 		border: 1px solid var(--color-line);
 		border-radius: 4px;
@@ -172,43 +155,6 @@
 	form button:disabled {
 		opacity: 0.5;
 		cursor: default;
-	}
-	.out {
-		margin-top: 16px;
-		border-top: 1px solid var(--color-line);
-		padding-top: 12px;
-	}
-	.who {
-		font-family: var(--font-serif);
-		font-size: 21px;
-		margin-bottom: 10px;
-	}
-	.course {
-		border-left: 2px solid var(--color-line);
-		padding-left: 10px;
-		margin-bottom: 10px;
-	}
-	.code {
-		font-family: var(--font-mono);
-		font-weight: 600;
-		font-size: 13px;
-	}
-	.code span {
-		color: var(--color-dim);
-		font-weight: 400;
-		margin-left: 8px;
-	}
-	.meet {
-		display: flex;
-		justify-content: space-between;
-		gap: 12px;
-		font-size: 13px;
-		color: var(--color-dim);
-		line-height: 1.6;
-	}
-	.meet .when {
-		font-family: var(--font-mono);
-		white-space: nowrap;
 	}
 	.miss {
 		margin-top: 14px;
