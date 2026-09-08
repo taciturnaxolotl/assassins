@@ -133,6 +133,27 @@ export type Projection = {
 	roster: RosterCard[] | null;
 };
 
+/**
+ * The invented day behind the paywall, and the campus to draw it on.
+ *
+ * Seeded on the mark so it holds still between reloads — a sample that
+ * reshuffles reads as a glitch — but nothing in it is theirs, and the panel
+ * says so. Only made when there is actually a mark to be kept out of.
+ */
+async function sampleFor(db: DB, gmId: string | null) {
+	if (!gmId) return { campus: null, sample: null };
+	const { loadChain } = await import('./game');
+	const { targetOf } = await import('$lib/game/chain');
+	const { inventPlayer } = await import('./demo');
+
+	const mark = targetOf(await loadChain(db), gmId);
+	if (!mark) return { campus: null, sample: null };
+
+	const map = await campus(db);
+	if (!map) return { campus: null, sample: null };
+	return { campus: map, sample: inventPlayer(map, 1 + (Number(mark) % 5), `preview:${mark}`) };
+}
+
 export async function project(db: DB, access: Access): Promise<Projection> {
 	const { term } = await meta(db);
 
@@ -149,16 +170,24 @@ export async function project(db: DB, access: Access): Promise<Projection> {
 	if (access.tier === 'free') {
 		// You always get yourself in full. It is your own dossier; the paywall
 		// is on everyone else.
-		const [cards, own, hired] = await Promise.all([
+		const [cards, own, hired, preview] = await Promise.all([
 			roster(db),
 			access.gmId ? onePlayer(db, access.gmId) : null,
-			somePlayers(db, granted)
+			somePlayers(db, granted),
+			sampleFor(db, access.gmId)
 		]);
 		return {
 			term,
 			tier: access.tier,
-			players: [...(own ? [own] : []), ...hired.filter((p) => p.gmId !== access.gmId)],
-			campus: null,
+			players: [
+				...(own ? [own] : []),
+				...hired.filter((p) => p.gmId !== access.gmId),
+				// Openly invented, and openly not the mark's: the paywall shows the
+				// shape of the thing rather than a blank wall.
+				...(preview.sample ? [preview.sample] : [])
+			],
+			// OpenStreetMap, which the front door already serves to anybody.
+			campus: preview.campus,
 			roster: cards
 		};
 	}

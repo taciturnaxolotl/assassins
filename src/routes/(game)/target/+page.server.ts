@@ -22,5 +22,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const chain = await loadChain(db);
 	const mark = targetOf(chain, access.gmId);
-	return { pitch: mark ? await teaser(db, mark) : null };
+	// The sample day itself rides in the projection, so the store can draw it.
+	return { pitch: mark ? await teaser(db, mark) : null, day: mark ? 1 + (Number(mark) % 5) : 1 };
 };

@@ -123,7 +123,7 @@
 	</div>
 {:else}
 	{@render reported()}
-	<Locked name={g.name(markId)} teaser={data.pitch} />
+	<Locked name={g.name(markId)} teaser={data.pitch} sample={g.byId.get('demo') ?? null} day={data.day} />
 {/if}
 
 <!-- Shown whether or not this account can read the file, because the state it

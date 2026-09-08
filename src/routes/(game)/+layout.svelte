@@ -18,16 +18,19 @@
 		return () => clearInterval(t);
 	});
 
+	// What a player gets. The roster and the campus map are for running the
+	// game, not playing it: browsing all seventy-nine files is a different thing
+	// from hunting one person, and it is not what anybody paid for.
 	const TABS = [
 		['/target', 'Target'],
-		['/jobs', 'Jobs'],
-		['/roster', 'Roster'],
-		['/campus', 'Campus']
+		['/jobs', 'Jobs']
 	] as const;
 
-	// The board is how somebody without a subscription gets into a dossier at
-	// all, so it is never behind the lock.
-	const ALWAYS = new Set(['/target', '/jobs']);
+	const RUNNING = [
+		['/roster', 'Roster'],
+		['/campus', 'Campus'],
+		['/chain', 'Chain']
+	] as const;
 
 	const waiting = $derived(g.tier === 'pending');
 
@@ -36,7 +39,6 @@
 	// the line is just something in the way. Waiting on approval is different —
 	// that is status, and it explains why the tabs are dim.
 	const pitch = $derived(!g.unlocked && !waiting && !!g.myTargetId);
-	const locked = $derived(!g.unlocked);
 </script>
 
 <header>
@@ -45,13 +47,12 @@
 
 	<nav>
 		{#each TABS as [href, label] (href)}
-			{@const off = locked && !ALWAYS.has(href)}
-			<a {href} class:on={page.url.pathname === href} class:off aria-disabled={off}>
-				{label}{#if off}<span class="lock">·</span>{/if}
-			</a>
+			<a {href} class:on={page.url.pathname === href}>{label}</a>
 		{/each}
 		{#if g.isAdmin}
-			<a href="/chain" class:on={page.url.pathname === '/chain'}>Chain</a>
+			{#each RUNNING as [href, label] (href)}
+				<a {href} class:on={page.url.pathname === href}>{label}</a>
+			{/each}
 		{/if}
 	</nav>
 
@@ -127,13 +128,6 @@
 	nav a.on {
 		color: var(--color-blood);
 		border-bottom-color: var(--color-blood);
-	}
-	nav a.off {
-		opacity: 0.45;
-	}
-	.lock {
-		color: var(--color-warn);
-		margin-left: 4px;
 	}
 
 	.right {
