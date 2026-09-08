@@ -10,7 +10,7 @@ import { and, eq } from 'drizzle-orm';
 import type { DB } from './db';
 import { schema } from './db';
 import type { Chain, ChainView } from '$lib/game/types';
-import { targetOf } from '$lib/game/chain';
+import { hasWon, targetOf } from '$lib/game/chain';
 import { exists } from './data';
 
 // Only confirmed kills take somebody out of the ring. A claim is just a claim
@@ -104,8 +104,9 @@ export async function chainFor(
 ): Promise<ChainView> {
 	const [chain, claimed] = await Promise.all([loadChain(db), claimedKill(db, me)]);
 	const myTarget = me ? targetOf(chain, me) : null;
+	const won = !!me && hasWon(chain, me);
 
-	if (isAdmin) return { ...chain, myTarget, claimedKill: claimed, full: true };
+	if (isAdmin) return { ...chain, myTarget, claimedKill: claimed, won, full: true };
 
 	return {
 		// Your own edge and nobody else's. The rest of the ring never leaves.
@@ -113,6 +114,7 @@ export async function chainFor(
 		kills: chain.kills,
 		myTarget,
 		claimedKill: claimed,
+		won,
 		full: false
 	};
 }

@@ -83,6 +83,8 @@ export type ChainView = Chain & {
 	myTarget: string | null;
 	/** A kill you have reported that is still waiting to be confirmed. */
 	claimedKill: string | null;
+	/** The ring has closed on you: everybody else is out. */
+	won: boolean;
 	/** True only for whoever runs the game, where `assigned` really is everyone. */
 	full: boolean;
 };

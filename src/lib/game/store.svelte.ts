@@ -38,7 +38,7 @@ export class Game {
 	players = $state<Player[]>([]);
 	campus = $state<Campus | null>(null);
 	roster = $state<RosterCard[]>([]);
-	chain = $state<ChainView>({ assigned: {}, kills: {}, myTarget: null, claimedKill: null, full: false });
+	chain = $state<ChainView>({ assigned: {}, kills: {}, myTarget: null, claimedKill: null, won: false, full: false });
 	notes = $state<Record<string, string>>({});
 	me = $state<string | null>(null);
 	isAdmin = false;
@@ -84,6 +84,11 @@ export class Game {
 	/** A kill you have reported that nobody has confirmed yet. */
 	get claimedKill() {
 		return this.chain.claimedKill;
+	}
+
+	/** The ring has closed on you. */
+	get won() {
+		return this.chain.won;
 	}
 
 	get day() {

@@ -62,6 +62,14 @@
 	</div>
 {:else if !g.me}
 	<p class="empty">Your claim has not been approved yet.</p>
+{:else if g.won}
+	<div class="brief">
+		<h1>You won</h1>
+		<p>
+			The ring closed on you. Everybody else is out, and the only name left on
+			your slip is your own.
+		</p>
+	</div>
 {:else if g.dead(g.me)}
 	<div class="brief">
 		<h1>You are out</h1>

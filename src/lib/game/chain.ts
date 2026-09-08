@@ -15,8 +15,8 @@ import type { Chain, Player } from './types';
 
 export const isDead = (c: Chain, id: string | null | undefined) => !!id && id in c.kills;
 
-export function targetOf(c: Chain, id: string): string | null {
-	if (isDead(c, id)) return null;
+/** The end of the walk: whoever is left standing in front of you. */
+function walk(c: Chain, id: string) {
 	const seen = new Set([id]);
 	let t: string | undefined = c.assigned[id];
 	while (t && isDead(c, t) && !seen.has(t)) {
@@ -25,6 +25,19 @@ export function targetOf(c: Chain, id: string): string | null {
 	}
 	return t && !isDead(c, t) ? t : null;
 }
+
+export function targetOf(c: Chain, id: string): string | null {
+	if (isDead(c, id)) return null;
+	const t = walk(c, id);
+	// The walk coming back around to you means everyone between you and
+	// yourself is dead, which is the last move of the game rather than an
+	// instruction to hunt yourself.
+	return t === id ? null : t;
+}
+
+/** The ring has closed on one person. They have won. */
+export const hasWon = (c: Chain, id: string) =>
+	!isDead(c, id) && walk(c, id) === id;
 
 export const huntersOf = (c: Chain, players: Player[], id: string) =>
 	players.filter((p) => !isDead(c, p.gmId) && targetOf(c, p.gmId) === id);
