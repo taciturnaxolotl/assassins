@@ -1,6 +1,8 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "assassins",
+	// The token reaches two accounts, so wrangler cannot guess in CI.
+	"account_id": "fdbe5b542ede643d34962c1f07a34565",
 	"main": ".svelte-kit/cloudflare/_worker.js",
 	"compatibility_date": "2026-09-07",
 	"compatibility_flags": ["nodejs_compat"],
@@ -9,12 +11,15 @@
 		"directory": ".svelte-kit/cloudflare"
 	},
 	"observability": { "enabled": true },
+	// Workers Builds runs `wrangler deploy` directly rather than a package
+	// script, and `main` below does not exist until Vite has run. Without this
+	// the deploy fails looking for a file the build was never asked to make.
+	"build": { "command": "bun run build" },
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "assassins",
-			// `wrangler d1 create assassins` prints this.
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "160b2ef8-0076-45bc-ae0c-f37d52728647",
 			"migrations_dir": "drizzle"
 		}
 	]
