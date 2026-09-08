@@ -68,10 +68,11 @@ export const actions: Actions = {
 		]);
 		const certain = suggestions.find((s) => s.certain);
 
-		const wantsAgent = !certain && form.get('kind') === 'agent';
-		const gmId = certain ? certain.gmId : wantsAgent ? null : String(form.get('gmId') ?? '');
+		// A claim names a player. Signing on as nobody was only ever a way onto
+		// the contract board, and the board is gone.
+		const gmId = certain ? certain.gmId : String(form.get('gmId') ?? '');
 
-		if (!wantsAgent && (!gmId || !(await exists(db, gmId))))
+		if (!gmId || !(await exists(db, gmId)))
 			return fail(400, { message: 'Pick a player from the roster.' });
 
 		if (gmId) {

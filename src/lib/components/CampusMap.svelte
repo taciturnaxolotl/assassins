@@ -16,15 +16,12 @@
 		day,
 		onday,
 		compact = false,
-		marks = [],
 		mine = null
 	}: {
 		people: Player[];
 		day: number;
 		onday?: (d: number) => void;
 		compact?: boolean;
-		/** Places worth standing, drawn over the route rather than in it. */
-		marks?: { x: number; y: number; label: string }[];
 		/** Your own day, drawn alongside theirs so the two can be compared. */
 		mine?: Player | null;
 	} = $props();
@@ -141,19 +138,6 @@
 		}
 		return out;
 	});
-
-	// A ring drawn over a pin that already gives the time does not need to give
-	// it again. Two identical timestamps stacked on one spot reads as a fault.
-	const labelledMarks = $derived(
-		marks.map((m) => ({
-			...m,
-			label: pins.some(
-				(p) => Math.hypot(p.x - m.x, p.y - m.y) < 12 && p.at.split(', ').includes(m.label)
-			)
-				? ''
-				: m.label
-		}))
-	);
 
 	// ─── camera ─────────────────────────────────────────────────────────────
 
@@ -385,14 +369,6 @@
 					{/if}
 				{/each}
 			</g>
-			<g class="marks">
-				{#each labelledMarks as m, i (i)}
-					<circle cx={m.x} cy={m.y} />
-					{#if !compact && m.label}
-						<text x={m.x + 12} y={m.y - 14}>{m.label}</text>
-					{/if}
-				{/each}
-			</g>
 			<g class="labels">
 				{#each labelled as b, i (i)}
 					<text x={b.at[0]} y={b.at[1]}>{b.label}</text>
@@ -548,27 +524,8 @@
 		font-family: var(--font-mono);
 		font-weight: 500;
 		font-size: max(calc(10px * var(--k, 1)), 5px);
-	}
-
-	/* A crossing is a place to wait, not a place either of you is going, so it
-	   reads as a ring around the map rather than another pin on it. */
-	.marks circle {
-		fill: none;
-		stroke: var(--color-warn);
-		stroke-width: 2;
-		vector-effect: non-scaling-stroke;
-		r: max(calc(11px * var(--k, 1)), 6px);
-	}
-	.marks text {
-		fill: var(--color-warn);
-		font-family: var(--font-mono);
-		font-weight: 600;
-		font-size: max(calc(9px * var(--k, 1)), 5px);
-	}
-	/* Routes run under the labels, and a stroke through a digit turns an 0 into
-	   an 8. Draw the background behind each glyph first. */
-	.marks text,
-	.pins text {
+		/* A route runs under these, and a stroke through a digit turns a 0 into
+		   an 8. Draw the background behind each glyph first. */
 		paint-order: stroke;
 		stroke: var(--color-bg);
 		stroke-width: 3px;

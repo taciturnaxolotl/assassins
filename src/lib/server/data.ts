@@ -11,7 +11,6 @@ import { eq, inArray, like } from 'drizzle-orm';
 import type { DB } from './db';
 import { schema } from './db';
 import type { Access } from './access';
-import { grantedMarks } from './market';
 import type { Campus, Player, Tier } from '$lib/game/types';
 
 const P = schema.player;
@@ -212,30 +211,19 @@ async function sampleFor(db: DB, gmId: string | null) {
 }
 
 export async function project(db: DB, access: Access): Promise<Projection> {
-	// The term and the granted marks used to be awaited one after the other
-	// ahead of everything else, which put two network hops in front of every
-	// page for two values nothing else waits on. Pro needs neither to start
-	// reading, so it starts reading.
 	if (access.tier === 'pro') {
 		const [{ term }, players, map] = await Promise.all([meta(db), everyone(db), campus(db)]);
 		return { term, tier: access.tier, players, campus: map, roster: null };
 	}
 
-	// Taking a job opens that mark's file for as long as the job is open. This
-	// is why access is per-target rather than a flag on the account: a free
-	// account with a contract can read one dossier and no others.
-	const [{ term }, granted] = await Promise.all([
-		meta(db),
-		access.user ? grantedMarks(db, access.user.id) : Promise.resolve([] as string[])
-	]);
+	const { term } = await meta(db);
 
 	if (access.tier === 'free') {
 		// You always get yourself in full. It is your own dossier; the paywall
 		// is on everyone else.
-		const [cards, own, hired, preview] = await Promise.all([
+		const [cards, own, preview] = await Promise.all([
 			roster(db),
 			access.gmId ? onePlayer(db, access.gmId) : null,
-			somePlayers(db, granted),
 			sampleFor(db, access.gmId)
 		]);
 		return {
@@ -243,7 +231,6 @@ export async function project(db: DB, access: Access): Promise<Projection> {
 			tier: access.tier,
 			players: [
 				...(own ? [own] : []),
-				...hired.filter((p) => p.gmId !== access.gmId),
 				// Openly invented, and openly not the mark's: the paywall shows the
 				// shape of the thing rather than a blank wall.
 				...(preview.sample ? [preview.sample] : [])
@@ -259,15 +246,14 @@ export async function project(db: DB, access: Access): Promise<Projection> {
 	if (access.tier === 'pending') {
 		// Waiting on a human looks the same as not having paid: the file is
 		// sealed either way, so the same frosted preview stands in for it.
-		const [cards, hired, preview] = await Promise.all([
+		const [cards, preview] = await Promise.all([
 			roster(db),
-			somePlayers(db, granted),
 			sampleFor(db, access.gmId)
 		]);
 		return {
 			term,
 			tier: access.tier,
-			players: [...hired, ...(preview.sample ? [preview.sample] : [])],
+			players: preview.sample ? [preview.sample] : [],
 			campus: preview.campus,
 			roster: cards
 		};

@@ -13,8 +13,7 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import * as Alert from '$lib/components/ui/alert';
 	import { game } from '$lib/game/store.svelte';
-	import { CLASS, DAYS, WEEK, dayOf, hhmm, place } from '$lib/game/time';
-	import { actionable, crossings, span } from '$lib/game/cross';
+	import { CLASS, DAYS, WEEK, dayOf, place } from '$lib/game/time';
 	import type { Player } from '$lib/game/types';
 
 	let {
@@ -59,19 +58,13 @@
 	const isMe = $derived(player.gmId === g.me);
 	const canRoute = $derived(!!g.walker && g.walker.plan(g.slots, player, day).located.length > 0);
 
-	// Where this person's day and your own could put you in the same place.
-	// Your own file is always in the projection, so this works on the free tier
-	// as well — it is your day being compared, not theirs being given away.
+	// Your own day, to draw alongside theirs. Your file is always in the
+	// projection, so this works on the free tier too: it is your day being
+	// drawn, not theirs being given away.
 	const mine = $derived(
 		g.me && g.me !== player.gmId ? (g.byId.get(g.me) ?? null) : null
 	);
-	const touches = $derived(
-		g.walker && mine ? crossings(g.walker, g.slots, mine, player, day) : []
-	);
-	// Only the ones you could act on get drawn. The rest stay in the list.
-	const marks = $derived(
-		touches.filter(actionable).map((c) => ({ x: c.x, y: c.y, label: hhmm(Math.round(c.from)) }))
-	);
+
 
 	// Only set once the ring has routed around somebody: their live target is
 	// no longer the one they drew.
@@ -247,36 +240,11 @@
 					{day}
 					onday={(d) => (day = d)}
 					compact={!wide}
-					{marks}
 					{mine}
 				/>
 				<Itinerary {player} {day} />
 			</div>
 
-			{#if touches.length}
-				<div class="touch">
-					<h4>Where your days touch</h4>
-					<p class="note">
-						Nobody records when somebody left for class, only when it starts, so a
-						walk is a window and not a moment. The longer the window, the more of
-						it you would have to stand around for. Only the ones short enough to
-						wait out, in a room small enough to be noticed in, are marked on the
-						map.
-					</p>
-					<ul>
-						{#each touches as c, i (i)}
-							<li class:quiet={!actionable(c)}>
-								<span class="when">{span(c)}</span>
-								<span class="at">{c.near ?? 'open ground'}</span>
-								<span class="doing">you {c.mine}, they {c.theirs}</span>
-								{#if c.others}
-									<span class="crowd">{c.others} others have class there</span>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				</div>
-			{/if}
 		</div>
 	{/if}
 
@@ -406,65 +374,6 @@
 
 	/* The shape of the file with none of its contents. Unreachable as well as
 	   unreadable, so nothing invented can be clicked, selected or copied. */
-	.touch {
-		margin-top: 14px;
-		border-top: 1px solid var(--color-line);
-		padding-top: 12px;
-	}
-	.touch h4 {
-		margin: 0;
-		font-size: 13px;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--color-warn);
-	}
-	.touch .note {
-		margin: 4px 0 10px;
-		font-size: 12px;
-		line-height: 1.5;
-		color: var(--color-dim);
-		max-width: 62ch;
-	}
-	.touch ul {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: grid;
-		gap: 7px;
-	}
-	.touch li {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		gap: 4px 10px;
-		font-size: 13px;
-		line-height: 1.5;
-		border-left: 2px solid var(--color-warn);
-		padding-left: 10px;
-	}
-	.touch .when {
-		font-family: var(--font-mono);
-		font-weight: 600;
-		white-space: nowrap;
-	}
-	.touch .at {
-		font-weight: 600;
-	}
-	.touch .doing,
-	.touch .crowd {
-		color: var(--color-dim);
-	}
-	/* An hour in a crowded hall is worth knowing once and is not worth walking
-	   to, so it stays in the list and steps back out of the way. */
-	.touch li.quiet {
-		border-left-color: var(--color-line);
-		opacity: 0.62;
-	}
-	.touch .crowd {
-		font-size: 12px;
-		font-style: italic;
-	}
-
 	.frosted {
 		/* Enough to make it unreadable, not so much that you cannot tell what
 		   you would be getting. */

@@ -54,13 +54,11 @@
 
 {#if g.isFreeAgent}
 	<div class="brief">
-		<h1>Free agent</h1>
+		<h1>Outside the ring</h1>
 		<p>
-			You are outside the ring. Nobody drew you and you drew nobody, so there is
-			no assignment here. Work comes off <a href="/jobs">the board</a>, and a job
-			you take opens that mark's file for as long as you hold it.
+			Nobody drew you and you drew nobody, so there is no assignment here. If
+			that is wrong and you are on the roster, say so and it can be put right.
 		</p>
-		<Button href="/jobs" size="lg">See the board</Button>
 	</div>
 {:else if !g.me}
 	<p class="empty">Your claim has not been approved yet.</p>
@@ -170,9 +168,4 @@
 		margin: 0;
 		max-width: 46ch;
 	}
-	a {
-		color: var(--color-blood);
-		text-decoration: underline;
-	}
-
 </style>

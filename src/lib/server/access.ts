@@ -25,9 +25,9 @@ export type Access = {
 	 */
 	realUser?: Account | null;
 	tier: Tier;
-	/** The player this account has been approved as. Null for a free agent. */
+	/** The player this account has been approved as. */
 	gmId: string | null;
-	/** Signed in, in the game, and nobody on the roster: a contractor. */
+	/** Approved, but nobody on the roster, so outside the ring entirely. */
 	isFreeAgent: boolean;
 	claim: typeof schema.claim.$inferSelect | null;
 	isAdmin: boolean;

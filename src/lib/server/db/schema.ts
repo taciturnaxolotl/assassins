@@ -42,8 +42,9 @@ export const claim = sqliteTable('claim', {
 	userId: text('user_id')
 		.primaryKey()
 		.references(() => user.id, { onDelete: 'cascade' }),
-	// Null means a free agent: somebody outside the ring who signs in to work
-	// contracts and is nobody on the roster.
+	// Null means somebody outside the ring: approved to sign in, but nobody on
+	// the roster. The claim form no longer offers it — it existed for the
+	// contract board — so the only rows like this are from before that went.
 	gmId: text('gm_id'),
 	status: text('status').notNull().default('pending'), // pending | approved | denied
 	// Why the applicant says it is them, and why you decided what you decided.
@@ -123,65 +124,6 @@ export const dataset = sqliteTable('dataset', {
 	value: text('value', { mode: 'json' }).notNull(),
 	builtAt: integer('built_at', { mode: 'timestamp' }).notNull()
 });
-
-// ─── the market ─────────────────────────────────────────────────────────────
-//
-// Contracts.
-//
-// Nothing here is denominated in money. What changes hands is a thing — a bag
-// of sour candy, a textbook you are done with, a week of someone's dish duty —
-// so it is written down rather than counted. Escrow is a person: whoever is
-// physically holding the goods until the job is finished. That makes the word
-// mean what it says on a campus, where nobody can hold anyone's money anyway.
-
-// A job on the board. You may post one on the person you are hunting, naming
-// what it is worth and how you intend to settle.
-export const contract = sqliteTable('contract', {
-	id: text('id').primaryKey(),
-	markGmId: text('mark_gm_id').notNull(),
-	posterUserId: text('poster_user_id')
-		.notNull()
-		.references(() => user.id, { onDelete: 'cascade' }),
-	posterGmId: text('poster_gm_id').notNull(),
-	/** What is on the table, in words. "Half a box of Cheez-Its." */
-	offer: text('offer').notNull(),
-	/** What the two of them actually shook on, once a bid is accepted. */
-	agreed: text('agreed'),
-	/**
-	 * Who is holding the goods until it is done. Null means straight handover on
-	 * completion, and trusting each other about it.
-	 */
-	heldBy: text('held_by'),
-	terms: text('terms'),
-	status: text('status').notNull().default('open'), // open | taken | done | cancelled
-	takenByUserId: text('taken_by_user_id').references(() => user.id, { onDelete: 'set null' }),
-	takenByGmId: text('taken_by_gm_id'),
-	takenAt: integer('taken_at', { mode: 'timestamp' }),
-	// Both sides say the goods changed hands before it is finished.
-	posterSettled: integer('poster_settled', { mode: 'boolean' }).notNull().default(false),
-	hitmanSettled: integer('hitman_settled', { mode: 'boolean' }).notNull().default(false),
-	closedAt: integer('closed_at', { mode: 'timestamp' }),
-	createdAt: integer('created_at', { mode: 'timestamp' }).notNull()
-});
-
-export const bid = sqliteTable(
-	'bid',
-	{
-		contractId: text('contract_id')
-			.notNull()
-			.references(() => contract.id, { onDelete: 'cascade' }),
-		hitmanUserId: text('hitman_user_id')
-			.notNull()
-			.references(() => user.id, { onDelete: 'cascade' }),
-		// Null for a free agent, who is nobody on the roster.
-		hitmanGmId: text('hitman_gm_id'),
-		/** What they want for it. Not necessarily what was offered. */
-		ask: text('ask').notNull(),
-		pitch: text('pitch'),
-		createdAt: integer('created_at', { mode: 'timestamp' }).notNull()
-	},
-	(t) => [primaryKey({ columns: [t.contractId, t.hitmanUserId] })]
-);
 
 // Photographs added while the game is running, kept apart from `player` because
 // that table is rewritten wholesale every time the join is rebuilt. A death

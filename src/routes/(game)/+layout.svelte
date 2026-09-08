@@ -23,7 +23,6 @@
 	// from hunting one person, and it is not what anybody paid for.
 	const TABS = [
 		['/target', 'Target'],
-		['/jobs', 'Jobs']
 	] as const;
 
 	// Your own file, which is the one you are least able to look up any other

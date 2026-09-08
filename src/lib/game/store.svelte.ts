@@ -78,7 +78,7 @@ export class Game {
 		return this.roster.filter((r) => !this.dead(r.gmId)).length;
 	}
 
-	/** Signed in, in the game, and nobody on the roster: a contractor. */
+	/** Signed in, approved, and nobody on the roster. */
 	isFreeAgent = $state(false);
 
 	/** A kill you have reported that nobody has confirmed yet. */

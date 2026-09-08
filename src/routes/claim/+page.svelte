@@ -16,10 +16,9 @@
 	let busy = $state(false);
 	// Somebody the directory placed on the roster is in the ring, and cannot
 	// declare themselves outside it.
-	let agent = $state(false);
 
 	const chosen = $derived(certain ? certain.gmId : picked);
-	const ready = $derived(!!certain || agent || !!picked);
+	const ready = $derived(!!certain || !!picked);
 	const options = $derived(
 		data.roster.map((p) => ({ ...p, taken: data.taken.includes(p.gmId) }))
 	);
@@ -48,25 +47,13 @@
 				Your mission, should you choose to accept it, is to assassinate multiple
 				high value targets which shall be provided shortly.
 			</p>
-		{:else if agent}
-			<p>
-				You are signing on as a free agent: outside the ring, nobody's target
-				and nobody's hunter. You take contracts off the board, and a job opens
-				that mark's file for as long as you hold it.
-			</p>
-			<Button type="button" variant="ghost" onclick={() => (agent = false)}>
-				Actually, I'm on the roster
-			</Button>
 		{:else}
 			<p>Your agent ID is currently unmatched. Please select your identity:</p>
 			<PlayerCombobox {options} bind:value={picked} placeholder="Select your identity" />
-			<Button type="button" variant="ghost" onclick={() => (agent = true)}>
-				I'm not in the game — sign me on as a free agent
-			</Button>
 		{/if}
 
 		<input type="hidden" name="gmId" value={chosen} />
-		<input type="hidden" name="kind" value={agent ? 'agent' : 'player'} />
+		<input type="hidden" name="kind" value="player" />
 
 		{#if form?.message}
 			<Alert.Root variant="destructive">
@@ -75,7 +62,7 @@
 		{/if}
 
 		<Button type="submit" size="lg" disabled={!ready || busy}>
-			{busy ? 'confirming…' : agent ? 'Sign me on.' : 'Please confirm this is you.'}
+			{busy ? 'confirming…' : 'Please confirm this is you.'}
 		</Button>
 	</form>
 </main>
