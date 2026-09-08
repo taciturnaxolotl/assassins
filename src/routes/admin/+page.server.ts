@@ -24,6 +24,7 @@ import {
 	markSeen
 } from '$lib/server/groupme';
 import { targetOf } from '$lib/game/chain';
+import { AUTO_APPROVE, setSetting, settings } from '$lib/server/settings';
 import type { Actions, PageServerLoad } from './$types';
 
 const guard = (locals: App.Locals, writing = true) => {
@@ -37,7 +38,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	guard(locals, false);
 	const { db } = locals;
 
-	const [claims, cards, chain, unconfirmed, autoFiled] = await Promise.all([
+	const [claims, cards, chain, unconfirmed, autoFiled, flags] = await Promise.all([
 		db
 			.select({
 				claim: schema.claim,
@@ -72,7 +73,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			)
 			.where(and(eq(schema.groupmeSeen.kind, 'snipe'), eq(schema.groupmeSeen.outcome, 'auto')))
 			.orderBy(desc(schema.groupmeSeen.decidedAt))
-			.limit(12)
+			.limit(12),
+		settings(db)
 	]);
 
 	const names = new Map(cards.map((c) => [c.gmId, c]));
@@ -114,6 +116,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const filed = autoFiled.map((f) => ({ ...f, of: who(f.gmId) ?? f.gmId }));
 
 	return {
+		flags,
 		groupme: {
 			on: groupmeOn(locals.env) || snipesEnabled(locals.env),
 			kills: groupmeOn(locals.env),
@@ -304,6 +307,19 @@ export const actions: Actions = {
 		if (!messageId) return fail(400, { message: 'Which message?' });
 		await dropSnipe(locals.db, messageId);
 		return { message: 'Taken back off. The next read will offer it again.' };
+	},
+
+	// Whether a hand-picked claim still needs a person. Only ever changed here,
+	// and only by somebody who is actually themselves.
+	autoApprove: async ({ request, locals }) => {
+		const admin = guard(locals);
+		const on = (await request.formData()).get('on') === '1';
+		await setSetting(locals.db, AUTO_APPROVE, on, admin.id);
+		return {
+			message: on
+				? 'Claims are approved as they arrive. Anyone can now name themselves as any unclaimed player.'
+				: 'Claims that the directory cannot vouch for wait here again.'
+		};
 	},
 
 	comp: async ({ request, locals }) => {

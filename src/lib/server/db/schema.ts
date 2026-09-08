@@ -207,3 +207,13 @@ export const groupmeSeen = sqliteTable('groupme_seen', {
 	decidedBy: text('decided_by').references(() => user.id, { onDelete: 'set null' }),
 	decidedAt: integer('decided_at', { mode: 'timestamp' }).notNull()
 });
+
+// Settings a person changes while the game runs. Deliberately not `dataset`:
+// the build empties that table on every run, and a switch somebody threw should
+// not come back on because the roster was rebuilt.
+export const setting = sqliteTable('setting', {
+	key: text('key').primaryKey(),
+	value: text('value').notNull(),
+	setBy: text('set_by').references(() => user.id, { onDelete: 'set null' }),
+	setAt: integer('set_at', { mode: 'timestamp' }).notNull()
+});

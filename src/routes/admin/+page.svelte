@@ -257,6 +257,39 @@
 		</section>
 	{/if}
 
+	<section>
+		<h2 class="rule">Letting people in</h2>
+		<div class="row toggle" class:live={data.flags.autoApprove}>
+			<div class="story">
+				<strong>
+					{data.flags.autoApprove
+						? 'Claims are approved as they arrive.'
+						: 'Claims the directory cannot vouch for wait here.'}
+				</strong>
+				<p class="legal">
+					An account whose Cedarville address resolves to a player is let in either
+					way — that is the directory agreeing, and it is better evidence than a
+					glance at this page. The switch is about everyone else: a hand-picked
+					name, and free agents, who assert no identity at all.
+					{#if !data.flags.autoApprove}
+						Turning it on means any Cedarville account can name itself as any
+						player nobody has claimed yet, and read that player's dorm, room and
+						schedule. Players already claimed stay protected.
+					{:else}
+						Anyone signed in can name themselves as any unclaimed player. Claims
+						already waiting still need you.
+					{/if}
+				</p>
+			</div>
+			<form method="POST" action="?/autoApprove" use:enhance>
+				<input type="hidden" name="on" value={data.flags.autoApprove ? '0' : '1'} />
+				<Button size="sm" variant={data.flags.autoApprove ? 'outline' : 'default'} type="submit">
+					{data.flags.autoApprove ? 'Send them back to the queue' : 'Approve on arrival'}
+				</Button>
+			</form>
+		</div>
+	</section>
+
 	{#if data.needs.claims.length}
 		<section>
 			<h2 class="rule">Claims — {data.needs.claims.length}</h2>
@@ -531,6 +564,22 @@
 	}
 	.row.agent {
 		border-left-color: var(--color-dim);
+	}
+	.row.toggle {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		flex-wrap: wrap;
+		border-left-color: var(--color-dim);
+	}
+	.row.toggle.live {
+		border-left-color: var(--color-warn);
+	}
+	.row.toggle .story {
+		flex: 1 1 320px;
+	}
+	.row.toggle .story p {
+		margin: 4px 0 0;
 	}
 	.row.act {
 		border-left-color: var(--color-blood);

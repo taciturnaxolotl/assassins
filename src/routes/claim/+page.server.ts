@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { schema } from '$lib/server/db';
 import { exists, meta, suggestFor } from '$lib/server/data';
 import { landingFor, mayWrite } from '$lib/server/access';
+import { autoApproves } from '$lib/server/settings';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -59,9 +60,13 @@ export const actions: Actions = {
 		// would let anyone post their way into somebody else's dossier — and it
 		// is also what stops a player quietly declaring themselves a free agent
 		// to get out of being hunted.
-		const certain = (await suggestFor(db, access.user.username, access.user.name)).find(
-			(s) => s.certain
-		);
+		// Both are needed before anything is decided and neither waits on the
+		// other, so they cost one round trip between them.
+		const [suggestions, auto] = await Promise.all([
+			suggestFor(db, access.user.username, access.user.name),
+			autoApproves(db)
+		]);
+		const certain = suggestions.find((s) => s.certain);
 
 		const wantsAgent = !certain && form.get('kind') === 'agent';
 		const gmId = certain ? certain.gmId : wantsAgent ? null : String(form.get('gmId') ?? '');
@@ -104,13 +109,22 @@ export const actions: Actions = {
 		// resolve, and anyone whose address does not match.
 		// Free agents assert no identity, so there is nothing for the directory to
 		// agree with and a human still has to let them in.
-		const self = access.isAdmin || !!certain;
+		// Unless the switch is on, in which case a hand-picked name and a free
+		// agent go through too. That is a real loosening; AUTO_APPROVE says
+		// what it costs.
+		const self = access.isAdmin || !!certain || auto;
 		await db.insert(schema.claim).values({
 			userId: access.user.id,
 			gmId,
 			pitch: pitch || null,
 			status: self ? 'approved' : 'pending',
-			verdict: certain ? 'Directory match.' : access.isAdmin ? 'Runs the game.' : null,
+			verdict: certain
+				? 'Directory match.'
+				: access.isAdmin
+					? 'Runs the game.'
+					: auto
+						? 'Approved on sight.'
+						: null,
 			decidedBy: self ? access.user.id : null,
 			decidedAt: self ? new Date() : null,
 			createdAt: new Date()
