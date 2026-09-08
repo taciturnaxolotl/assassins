@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { Game, provide } from '$lib/game/store.svelte';
 	import { DAYS, hhmm } from '$lib/game/time';
+	import Xray from '$lib/components/Xray.svelte';
 
 	let { data, children } = $props();
 
@@ -39,6 +40,21 @@
 
 	const waiting = $derived(g.tier === 'pending');
 
+	// Tap the wordmark seven times, quickly, and the x-ray opens. The run resets
+	// if you dawdle, so it takes a bit of intent rather than an idle finger.
+	let taps = 0;
+	let last = 0;
+	let xray = $state(false);
+	function knock() {
+		const now = performance.now();
+		taps = now - last < 600 ? taps + 1 : 1;
+		last = now;
+		if (taps >= 7) {
+			taps = 0;
+			xray = true;
+		}
+	}
+
 </script>
 
 <svelte:head>
@@ -49,7 +65,8 @@
 </svelte:head>
 
 <header>
-	<h1>Assassins <span class="year">26</span></h1>
+	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+	<h1 onclick={knock}>Assassins <span class="year">26</span></h1>
 	<div class="tally">{g.living} alive / {g.roster.length} · {g.term}</div>
 
 	<nav>
@@ -103,6 +120,8 @@
 	}
 	h1 {
 		font: 400 30px/1 var(--font-serif);
+		cursor: default;
+		user-select: none;
 	}
 	.year {
 		color: var(--color-blood);
@@ -184,3 +203,7 @@
 		}
 	}
 </style>
+
+{#if xray}
+	<Xray onclose={() => (xray = false)} />
+{/if}
