@@ -74,7 +74,9 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each rows as s (s.p.gmId + s.c.section + s.from)}
+					<!-- Keyed by position: a section can meet twice at the same hour on
+					     the same day, in two rooms, so nothing about it is unique. -->
+					{#each rows as s, i (i)}
 						<tr class:gone={g.dead(s.p.gmId)}>
 							<td><Who id={s.p.gmId} /></td>
 							<td>{hhmm(showEnd ? s.to : s.from)}</td>

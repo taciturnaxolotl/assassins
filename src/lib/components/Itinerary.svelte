@@ -34,7 +34,9 @@
 					<td class="faint">—</td>
 				</tr>
 			{/if}
-			{#each plan.stops as stop (stop.s.c.section + stop.s.from)}
+			<!-- By position: a section can meet in two rooms at the same hour, and
+			     both are places they might be. -->
+			{#each plan.stops as stop, i (i)}
 				{@const left = slack(stop.leg)}
 				<tr class:tight={left != null && left < 3}>
 					<td>{hhmm(stop.s.from)}</td>

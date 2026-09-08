@@ -29,7 +29,8 @@
 				{#each hours as t (t)}
 					<div class="line" style="top:{(t - START) * px}px"></div>
 				{/each}
-				{#each dayOf(g.slots, player, d) as s (s.c.section + s.from)}
+				<!-- By position; see Itinerary. -->
+				{#each dayOf(g.slots, player, d) as s, i (i)}
 					<div
 						class="slot"
 						class:online={s.m.online}
