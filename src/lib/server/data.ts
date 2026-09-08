@@ -84,8 +84,19 @@ const rehydrate = (r: typeof P.$inferSelect): Player => ({
 
 export const roster = (db: DB) => db.select(CARD).from(P).orderBy(P.name) as Promise<RosterCard[]>;
 
-export const everyone = async (db: DB) =>
-	withExtras(db, (await db.select().from(P).orderBy(P.name)).map(rehydrate));
+export const everyone = async (db: DB) => {
+	// Every extra photo belongs to somebody on the roster, so both halves can be
+	// asked for at once rather than one waiting on the other's ids.
+	const [rows, extra] = await Promise.all([
+		db.select().from(P).orderBy(P.name),
+		db.select().from(schema.extraPhoto)
+	]);
+	const found = new Map<string, Player['photos']>();
+	for (const r of extra) found.set(r.gmId, [...(found.get(r.gmId) ?? []), { url: r.url, rotate: 0 }]);
+	return rows
+		.map(rehydrate)
+		.map((p) => (found.has(p.gmId) ? { ...p, extra: found.get(p.gmId) } : p));
+};
 
 export async function onePlayer(db: DB, gmId: string) {
 	const [row] = await db.select().from(P).where(eq(P.gmId, gmId)).limit(1);
@@ -110,10 +121,19 @@ async function fact<T>(db: DB, key: string): Promise<T | null> {
 	return (row?.value as T) ?? null;
 }
 
-export const meta = async (db: DB) => ({
-	term: (await fact<string>(db, 'term')) ?? '',
-	group: (await fact<{ id: string; name: string }>(db, 'group')) ?? { id: '', name: '' }
-});
+// Both facts live in the same table, so they cost one round trip, not two.
+// On D1 every await is a network hop and they add up faster than they read.
+export async function meta(db: DB) {
+	const rows = await db
+		.select()
+		.from(schema.dataset)
+		.where(inArray(schema.dataset.key, ['term', 'group']));
+	const at = (k: string) => rows.find((r) => r.key === k)?.value;
+	return {
+		term: (at('term') as string) ?? '',
+		group: (at('group') as { id: string; name: string }) ?? { id: '', name: '' }
+	};
+}
 
 // The campus is stored as its parts, because D1 refuses a statement much past
 // 50 KB and the whole graph is twice that. They are separate arrays that only
@@ -192,17 +212,22 @@ async function sampleFor(db: DB, gmId: string | null) {
 }
 
 export async function project(db: DB, access: Access): Promise<Projection> {
-	const { term } = await meta(db);
+	// The term and the granted marks used to be awaited one after the other
+	// ahead of everything else, which put two network hops in front of every
+	// page for two values nothing else waits on. Pro needs neither to start
+	// reading, so it starts reading.
+	if (access.tier === 'pro') {
+		const [{ term }, players, map] = await Promise.all([meta(db), everyone(db), campus(db)]);
+		return { term, tier: access.tier, players, campus: map, roster: null };
+	}
 
 	// Taking a job opens that mark's file for as long as the job is open. This
 	// is why access is per-target rather than a flag on the account: a free
 	// account with a contract can read one dossier and no others.
-	const granted = access.user ? await grantedMarks(db, access.user.id) : [];
-
-	if (access.tier === 'pro') {
-		const [players, map] = await Promise.all([everyone(db), campus(db)]);
-		return { term, tier: access.tier, players, campus: map, roster: null };
-	}
+	const [{ term }, granted] = await Promise.all([
+		meta(db),
+		access.user ? grantedMarks(db, access.user.id) : Promise.resolve([] as string[])
+	]);
 
 	if (access.tier === 'free') {
 		// You always get yourself in full. It is your own dossier; the paywall

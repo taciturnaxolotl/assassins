@@ -262,12 +262,21 @@ export async function startSession(db: DB, userId: string) {
 	return { token, expiresAt };
 }
 
+/**
+ * Who is asking, and what they have claimed, in one round trip.
+ *
+ * The claim comes back on the same query because every authenticated request
+ * needs both and asking twice put two network hops in front of every page. It
+ * is left-joined: an account with no claim is the normal state of somebody who
+ * has just signed in.
+ */
 export async function readSession(db: DB, token: string | undefined) {
 	if (!token) return null;
 	const [row] = await db
-		.select({ session: schema.session, user: schema.user })
+		.select({ session: schema.session, user: schema.user, claim: schema.claim })
 		.from(schema.session)
 		.innerJoin(schema.user, eq(schema.user.id, schema.session.userId))
+		.leftJoin(schema.claim, eq(schema.claim.userId, schema.session.userId))
 		.where(eq(schema.session.id, await sha256(token)))
 		.limit(1);
 
@@ -276,7 +285,7 @@ export async function readSession(db: DB, token: string | undefined) {
 		await db.delete(schema.session).where(eq(schema.session.id, row.session.id));
 		return null;
 	}
-	return row.user;
+	return { ...row.user, claim: row.claim };
 }
 
 export const endSession = async (db: DB, token: string | undefined) => {

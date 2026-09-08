@@ -58,14 +58,28 @@ export const isSpoofing = (a: Access) => !!a.realUser && a.realUser.id !== a.use
  */
 export const mayWrite = (a: Access) => !isSpoofing(a) || !!a.spoofWrite;
 
-export async function accessFor(db: DB, user: Account | null): Promise<Access> {
+/**
+ * `known` is the claim when the caller already has it — `readSession` fetches it
+ * on the same query it fetches the account, so the common path costs nothing
+ * here. Impersonation is the case that still has to go and look.
+ */
+export async function accessFor(
+	db: DB,
+	user: Account | null,
+	known?: typeof schema.claim.$inferSelect | null
+): Promise<Access> {
 	if (!user) return ANON;
 	const isAdmin = user.role === 'admin';
-	const [claim] = await db
-		.select()
-		.from(schema.claim)
-		.where(eq(schema.claim.userId, user.id))
-		.limit(1);
+	const claim =
+		known !== undefined
+			? known
+			: (
+					await db
+						.select()
+						.from(schema.claim)
+						.where(eq(schema.claim.userId, user.id))
+						.limit(1)
+				)[0];
 
 	// Being the one who runs the game does not exempt you from being in it:
 	// an admin still has to say which player they are, or they would have no

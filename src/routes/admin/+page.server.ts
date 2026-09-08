@@ -9,7 +9,7 @@
 
 import { error, fail, redirect } from '@sveltejs/kit';
 import { mayWrite } from '$lib/server/access';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { schema } from '$lib/server/db';
 import { exists, roster } from '$lib/server/data';
 import { clearKill, confirmKill, loadChain, pendingKills, setKill } from '$lib/server/game';
@@ -37,7 +37,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	guard(locals, false);
 	const { db } = locals;
 
-	const [claims, cards, chain, unconfirmed] = await Promise.all([
+	const [claims, cards, chain, unconfirmed, autoFiled] = await Promise.all([
 		db
 			.select({
 				claim: schema.claim,
@@ -55,7 +55,24 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.orderBy(desc(schema.claim.createdAt)),
 		roster(db),
 		loadChain(db),
-		pendingKills(db)
+		pendingKills(db),
+		// What filed itself, joined to the photograph in one go rather than
+		// fetching the ledger and then going back for the pictures.
+		db
+			.select({
+				messageId: schema.groupmeSeen.messageId,
+				at: schema.groupmeSeen.decidedAt,
+				url: schema.extraPhoto.url,
+				gmId: schema.extraPhoto.gmId
+			})
+			.from(schema.groupmeSeen)
+			.innerJoin(
+				schema.extraPhoto,
+				eq(schema.extraPhoto.id, sql`'snipe:' || ${schema.groupmeSeen.messageId}`)
+			)
+			.where(and(eq(schema.groupmeSeen.kind, 'snipe'), eq(schema.groupmeSeen.outcome, 'auto')))
+			.orderBy(desc(schema.groupmeSeen.decidedAt))
+			.limit(12)
 	]);
 
 	const names = new Map(cards.map((c) => [c.gmId, c]));
@@ -93,27 +110,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	}
 
-	// What filed itself, so an automatic mistake is visible rather than silent.
-	const auto = await db
-		.select()
-		.from(schema.groupmeSeen)
-		.where(and(eq(schema.groupmeSeen.kind, 'snipe'), eq(schema.groupmeSeen.outcome, 'auto')))
-		.orderBy(desc(schema.groupmeSeen.decidedAt))
-		.limit(12);
-	const autoPhotos = auto.length
-		? await db
-				.select()
-				.from(schema.extraPhoto)
-				.where(inArray(schema.extraPhoto.id, auto.map((a) => `snipe:${a.messageId}`)))
-		: [];
-	const filed = auto
-		.map((a) => {
-			const photo = autoPhotos.find((p) => p.id === `snipe:${a.messageId}`);
-			return photo
-				? { messageId: a.messageId, at: a.decidedAt, url: photo.url, of: who(photo.gmId) ?? photo.gmId }
-				: null;
-		})
-		.filter((x) => x !== null);
+	// An automatic mistake should be visible rather than silent.
+	const filed = autoFiled.map((f) => ({ ...f, of: who(f.gmId) ?? f.gmId }));
 
 	return {
 		groupme: {

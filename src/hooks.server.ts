@@ -21,7 +21,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 		return resolve(event);
 	}
 
-	const mine = await accessFor(event.locals.db, me);
+	// The claim rode along on the session query, so this costs no round trip.
+	const mine = await accessFor(event.locals.db, me, me.claim);
 
 	// Impersonation. Only an admin may, it is checked here on every request
 	// against the real session rather than trusted from the cookie, and the
