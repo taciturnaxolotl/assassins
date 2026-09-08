@@ -29,8 +29,14 @@
 	// all, so it is never behind the lock.
 	const ALWAYS = new Set(['/target', '/jobs']);
 
-	const locked = $derived(!g.unlocked);
 	const waiting = $derived(g.tier === 'pending');
+
+	// Selling the file before they have a target is selling nothing: they are
+	// still being set up, there is no dossier they are being kept out of, and
+	// the line is just something in the way. Waiting on approval is different —
+	// that is status, and it explains why the tabs are dim.
+	const pitch = $derived(!g.unlocked && !waiting && !!g.myTargetId);
+	const locked = $derived(!g.unlocked);
 </script>
 
 <header>
@@ -58,7 +64,7 @@
 	</div>
 </header>
 
-{#if locked}
+{#if waiting || pitch}
 	<div class="strip">
 		<span>
 			{#if waiting}
