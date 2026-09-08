@@ -1,7 +1,8 @@
 import { redirect } from '@sveltejs/kit';
 import { isPlayer, landingFor } from '$lib/server/access';
-import { campus, playerByStudentId, project } from '$lib/server/data';
+import { campus, onePlayer, playerByStudentId, project } from '$lib/server/data';
 import { chainFor, loadNotes } from '$lib/server/game';
+import type { Player } from '$lib/game/types';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
@@ -14,19 +15,34 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		loadNotes(db, access.user!.id)
 	]);
 
-	// The x-ray. A student id in the URL opens that one player's whole file, and
-	// the campus to draw it on — the personal detail an admin sees, but never
-	// the ring. `chain` above is still the ordinary player's view, so who anyone
-	// is hunting stays sealed; this only fills in schedules, rooms and the map.
-	const id = url.searchParams.get('id');
-	if (id && !access.isAdmin) {
-		const full = await playerByStudentId(db, id);
-		if (full) {
-			projection.players = [full, ...projection.players.filter((p) => p.gmId !== full.gmId)];
+	// Some pages want a whole file rather than the public card, and the campus to
+	// draw it on: your own page, always, and any page the x-ray has been pointed
+	// at with a student id. Admins already have everything.
+	if (!access.isAdmin) {
+		const wanted: Player[] = [];
+
+		// Your own file in full — the You tab is your file, and you get all of it.
+		if (access.gmId && url.pathname === `/player/${access.gmId}`) {
+			const me = await onePlayer(db, access.gmId);
+			if (me) wanted.push(me);
+		}
+
+		// The x-ray: a valid student id opens that one player's whole file.
+		const id = url.searchParams.get('id');
+		if (id) {
+			const them = await playerByStudentId(db, id);
+			if (them) wanted.push(them);
+		}
+
+		if (wanted.length) {
+			const ids = new Set(wanted.map((p) => p.gmId));
+			projection.players = [...wanted, ...projection.players.filter((p) => !ids.has(p.gmId))];
 			projection.campus = await campus(db);
 		}
 	}
 
+	// Whichever full files were folded in, the chain above is still the ordinary
+	// player's view, so nobody's target — not even who is hunting you — leaves.
 	return {
 		...projection,
 		chain,
