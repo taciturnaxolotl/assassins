@@ -67,7 +67,7 @@
 		{#if !rows.length}
 			<p class="empty">nobody</p>
 		{:else}
-			<table class="sheet">
+			<div class="scroller"><table class="sheet">
 				<thead>
 					<tr>
 						<th>Who</th><th>{showEnd ? 'Until' : 'At'}</th><th>Where</th><th>Course</th>
@@ -83,7 +83,7 @@
 						</tr>
 					{/each}
 				</tbody>
-			</table>
+			</table></div>
 		{/if}
 	</div>
 {/snippet}
@@ -101,7 +101,7 @@
 	{#each dorms as { dorm, ps } (dorm)}
 		<details class="fold">
 			<summary>{dorm} — {ps.length}</summary>
-			<table class="sheet">
+			<div class="scroller"><table class="sheet">
 				<thead>
 					<tr>
 						<th>Room</th><th>Who</th><th>Class</th>
@@ -118,7 +118,7 @@
 						</tr>
 					{/each}
 				</tbody>
-			</table>
+			</table></div>
 		</details>
 	{/each}
 </div>
@@ -127,7 +127,7 @@
 	<h3 class="rule">Shared sections</h3>
 	<details class="fold">
 		<summary>{shared.length} sections hold more than one player</summary>
-		<table class="sheet">
+		<div class="scroller"><table class="sheet">
 			<thead>
 				<tr><th>Section</th><th>Course</th><th>When</th><th>Where</th><th>Players</th></tr>
 			</thead>
@@ -150,6 +150,6 @@
 					</tr>
 				{/each}
 			</tbody>
-		</table>
+		</table></div>
 	</details>
 </div>

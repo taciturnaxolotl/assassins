@@ -34,6 +34,7 @@
 	const peak = $derived(Math.max(1, ...rows.flatMap((r) => r.cells.map((c) => c.n))));
 </script>
 
+<div class="scroller">
 <div class="heat">
 	<div class="row head">
 		<div class="time"></div>
@@ -55,11 +56,13 @@
 		</div>
 	{/each}
 </div>
+</div>
 
 <style>
 	.heat {
 		display: grid;
 		gap: 2px;
+		min-width: 30rem;
 	}
 	.row {
 		display: grid;

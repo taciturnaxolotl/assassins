@@ -15,7 +15,7 @@
 {#if !plan.stops.length}
 	<p class="empty">Nothing on {DAYS[day]}.</p>
 {:else}
-	<table class="sheet">
+	<div class="scroller"><table class="sheet">
 		<thead>
 			<tr>
 				{#each ['At', 'Where', 'Course', 'Walk', 'Slack'] as h (h)}<th>{h}</th>{/each}
@@ -51,7 +51,7 @@
 				</tr>
 			{/each}
 		</tbody>
-	</table>
+	</table></div>
 	{#if plan.homeless}
 		<p class="legal">
 			{player.dorm} is not on the map yet, so the first walk of the day is missing.

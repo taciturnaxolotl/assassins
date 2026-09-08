@@ -202,7 +202,7 @@
 					step into, which makes the account they would have had. They keep it
 					when they sign in.
 				</p>
-				<table class="sheet">
+				<div class="scroller"><table class="sheet">
 					<tbody>
 						{#each data.unclaimed as p (p.gmId)}
 							<tr>
@@ -217,7 +217,7 @@
 							</tr>
 						{/each}
 					</tbody>
-				</table>
+				</table></div>
 			</details>
 		</section>
 	{/if}
@@ -237,7 +237,7 @@
 		{#if !settled.length}
 			<p class="empty">Nothing yet.</p>
 		{:else}
-			<table class="sheet">
+			<div class="scroller"><table class="sheet">
 				<thead>
 					<tr><th>Account</th><th>Plays as</th><th>Plan</th><th>Decided</th><th></th></tr>
 				</thead>
@@ -294,7 +294,7 @@
 						</tr>
 					{/each}
 				</tbody>
-			</table>
+			</table></div>
 		{/if}
 	</section>
 </main>

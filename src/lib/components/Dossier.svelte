@@ -296,9 +296,13 @@
 	}
 	.dossier.wide .head {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
 		gap: 26px;
 		align-items: start;
+	}
+	@media (min-width: 860px) {
+		.dossier.wide .head {
+			grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+		}
 	}
 	.reel {
 		display: flex;
@@ -380,8 +384,10 @@
 		gap: 20px;
 		align-items: start;
 	}
-	.dossier.wide .mapwrap {
-		grid-template-columns: minmax(280px, 44%) minmax(300px, 1fr);
+	@media (min-width: 860px) {
+		.dossier.wide .mapwrap {
+			grid-template-columns: minmax(280px, 44%) minmax(300px, 1fr);
+		}
 	}
 
 	.course {

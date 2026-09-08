@@ -87,7 +87,7 @@
 				<Card.Content>
 					{#if c.status === 'open'}
 						{#if c.bids.length}
-							<table class="sheet">
+							<div class="scroller"><table class="sheet">
 								<thead>
 									<tr><th>Who</th><th>Wants</th><th>Says</th><th></th></tr>
 								</thead>
@@ -112,7 +112,7 @@
 										</tr>
 									{/each}
 								</tbody>
-							</table>
+							</table></div>
 						{:else}
 							<p class="empty">Nobody has offered yet.</p>
 						{/if}

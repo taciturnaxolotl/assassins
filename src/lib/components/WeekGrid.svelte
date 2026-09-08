@@ -15,6 +15,7 @@
 	);
 </script>
 
+<div class="scroller">
 <div class="calendar">
 	<div class="gutter" style="height:{height}px">
 		{#each hours as t (t)}
@@ -46,12 +47,16 @@
 		</div>
 	{/each}
 </div>
+</div>
 
 <style>
 	.calendar {
 		display: grid;
 		grid-template-columns: 54px repeat(5, 1fr);
 		gap: 6px;
+		/* Five days squeezed into a phone gives each about fifty pixels, which
+		   is narrower than the course code that has to sit in it. */
+		min-width: 34rem;
 	}
 	.gutter {
 		position: relative;

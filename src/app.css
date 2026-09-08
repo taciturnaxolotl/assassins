@@ -159,7 +159,16 @@
 		color: var(--color-faint);
 	}
 
-	/* Tables carry most of the app's information, so they get real styling. */
+	/*
+	 * Tables carry most of the app's information, and a row of course codes and
+	 * building names is wider than a phone. They scroll inside their own box so
+	 * the page itself never does — a body that scrolls sideways makes every
+	 * other thing on it feel broken.
+	 */
+	.scroller {
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
 	.sheet {
 		width: 100%;
 		border-collapse: collapse;
@@ -234,5 +243,10 @@
 	}
 	.fold .sheet {
 		margin-bottom: 14px;
+	}
+
+	/* Enough room for a building name and a course code side by side. */
+	.scroller .sheet {
+		min-width: 30rem;
 	}
 }

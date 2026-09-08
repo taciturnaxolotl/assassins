@@ -45,7 +45,7 @@
 {#if graves.length}
 	<div class="block">
 		<h3 class="rule">Kill log</h3>
-		<table class="sheet">
+		<div class="scroller"><table class="sheet">
 			<thead>
 				<tr><th>Killer</th><th>Victim</th><th>Inherited</th></tr>
 			</thead>
@@ -70,7 +70,7 @@
 					</tr>
 				{/each}
 			</tbody>
-		</table>
+		</table></div>
 	</div>
 {/if}
 
