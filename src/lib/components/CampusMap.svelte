@@ -131,13 +131,20 @@
 	const k = $derived(cam.w / home.w);
 	const viewBox = $derived(`${cam.x} ${cam.y} ${cam.w} ${cam.h}`);
 
+	// The view this map opens on: a crowd gets the whole campus, one player gets
+	// their own day. Double-clicking asks for it back, which is more useful than
+	// the whole village when you are looking at one person's morning.
+	function reset() {
+		if (crowd) fit();
+		else frameRoute();
+	}
+
 	$effect(() => {
 		// A new day, or a new person, reframes rather than leaving you looking at
 		// where yesterday happened.
 		day;
 		people;
-		if (crowd) fit();
-		else frameRoute();
+		reset();
 	});
 
 	function fit() {
@@ -297,6 +304,7 @@
 			onpointermove={move}
 			onpointerup={up}
 			onpointercancel={up}
+			ondblclick={reset}
 			role="application"
 			aria-label="Campus map"
 		>
@@ -370,6 +378,7 @@
 
 	svg.campus {
 		display: block;
+		user-select: none;
 		width: 100%;
 		height: auto;
 		max-width: 100%;
