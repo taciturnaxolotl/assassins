@@ -107,6 +107,7 @@
 										extras={[{ value: '', label: "Nobody knows who got them" }]}
 										value={picked[p.messageId]?.killer ?? p.killerGmId ?? ''}
 										placeholder="Nobody knows who got them"
+										exclude={picked[p.messageId]?.victim ?? p.victimGmId}
 										onpick={(v) => choose(p.messageId, 'killer', v)}
 									/>
 									<span class="arrow">got</span>
@@ -114,6 +115,7 @@
 										options={data.roster}
 										value={picked[p.messageId]?.victim ?? p.victimGmId ?? ''}
 										placeholder="Who went down"
+										exclude={picked[p.messageId]?.killer ?? p.killerGmId}
 										onpick={(v) => choose(p.messageId, 'victim', v)}
 									/>
 								</div>

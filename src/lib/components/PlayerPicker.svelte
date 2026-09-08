@@ -9,11 +9,14 @@
 		value = '',
 		placeholder,
 		unknown,
+		exclude = null,
 		onpick
 	}: {
 		value?: string;
 		placeholder: string;
 		unknown?: string;
+		/** Somebody who cannot be the answer — usually whoever the row is about. */
+		exclude?: string | null;
 		onpick: (v: string) => void;
 	} = $props();
 
@@ -28,4 +31,4 @@
 
 </script>
 
-<PlayerCombobox {options} {extras} {placeholder} {value} {onpick} />
+<PlayerCombobox {options} {extras} {placeholder} {value} {exclude} {onpick} />

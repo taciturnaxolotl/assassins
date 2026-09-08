@@ -63,6 +63,7 @@ export async function setKill(
 ) {
 	await real(db, victimGmId);
 	if (killerGmId) await real(db, killerGmId);
+	if (killerGmId === victimGmId) throw new Error('Nobody takes themselves out.');
 
 	// One row per victim, so a second claim would quietly overwrite the first.
 	// Whoever runs the game may do that deliberately; nobody else may take a

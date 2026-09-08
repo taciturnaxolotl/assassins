@@ -170,6 +170,7 @@
 						<PlayerPicker
 							value={g.chain.assigned[player.gmId] ?? ''}
 							placeholder="— not known —"
+							exclude={player.gmId}
 							onpick={(v) => run(() => g.assign(player.gmId, v || null))}
 						/>
 					</dd>
@@ -180,6 +181,7 @@
 							value={g.dead(player.gmId) ? g.chain.kills[player.gmId] || '?' : ''}
 							placeholder="— still alive —"
 							unknown="eliminated, killer unknown"
+							exclude={player.gmId}
 							onpick={(v) =>
 								run(() =>
 									v === '' ? g.revive(player.gmId) : g.kill(player.gmId, v === '?' ? null : v)

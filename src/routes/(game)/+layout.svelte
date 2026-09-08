@@ -26,6 +26,11 @@
 		['/jobs', 'Jobs']
 	] as const;
 
+	// Your own file, which is the one you are least able to look up any other
+	// way — the roster is not for players and searching for yourself is odd.
+	// A free agent is nobody on the roster, so there is nothing to show them.
+	const mine = $derived(g.me ? `/player/${g.me}` : null);
+
 	const RUNNING = [
 		['/roster', 'Roster'],
 		['/campus', 'Campus'],
@@ -51,6 +56,9 @@
 		{#each TABS as [href, label] (href)}
 			<a {href} class:on={page.url.pathname === href}>{label}</a>
 		{/each}
+		{#if mine}
+			<a href={mine} class:on={page.url.pathname === mine}>You</a>
+		{/if}
 		{#if g.isAdmin}
 			{#each RUNNING as [href, label] (href)}
 				<a {href} class:on={page.url.pathname === href}>{label}</a>
