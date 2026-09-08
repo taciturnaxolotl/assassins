@@ -191,6 +191,24 @@ export const actions: Actions = {
 		}
 
 		if (!victimGmId) return fail(400, { message: 'No victim to record.' });
+
+		// The photograph posted with the announcement belongs on the person it is
+		// of. It goes in its own table because `player` is rewritten wholesale
+		// every rebuild.
+		const image = String(form.get('image') ?? '');
+		if (image.startsWith('http'))
+			await locals.db
+				.insert(schema.extraPhoto)
+				.values({
+					id: `kill:${messageId}`,
+					gmId: victimGmId,
+					url: image,
+					source: 'kills topic',
+					addedBy: admin.id,
+					addedAt: new Date()
+				})
+				.onConflictDoNothing();
+
 		try {
 			// Straight to confirmed: an admin reading the announcement is the
 			// confirmation, so making them approve their own entry twice is

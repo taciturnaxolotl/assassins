@@ -50,6 +50,7 @@
 		[
 			...player.photos.map((s) => ({ shot: s, from: 'posted' })),
 			...(player.avatar ? [{ shot: player.avatar, from: 'profile' }] : []),
+			...(player.extra ?? []).map((s) => ({ shot: s, from: 'the kill' })),
 			...(player.gallery ?? []).map((s) => ({ shot: s, from: 'gallery' })),
 			...(player.directoryPhoto ? [{ shot: player.directoryPhoto, from: 'directory' }] : [])
 		]

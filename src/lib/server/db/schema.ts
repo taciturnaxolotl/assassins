@@ -183,6 +183,19 @@ export const bid = sqliteTable(
 	(t) => [primaryKey({ columns: [t.contractId, t.hitmanUserId] })]
 );
 
+// Photographs added while the game is running, kept apart from `player` because
+// that table is rewritten wholesale every time the join is rebuilt. A death
+// photo posted in the kills topic would not survive one `bun run data`.
+export const extraPhoto = sqliteTable('extra_photo', {
+	id: text('id').primaryKey(),
+	gmId: text('gm_id').notNull(),
+	url: text('url').notNull(),
+	/** Where it came from, so it can be labelled and undone. */
+	source: text('source').notNull(),
+	addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
+	addedAt: integer('added_at', { mode: 'timestamp' }).notNull()
+});
+
 // A message from the kills topic that somebody has already dealt with, so it
 // stops being proposed. Kept even when ignored — otherwise every sync offers
 // the same message somebody has already looked at and said no to.

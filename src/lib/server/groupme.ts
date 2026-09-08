@@ -32,13 +32,24 @@ import { targetOf } from '$lib/game/chain';
 /** Without a token and a topic the whole feature is simply absent. */
 export const enabled = (env: Env) => !!(env.GROUPME_TOKEN && env.GROUPME_KILLS_TOPIC);
 
-export type Message = { id: string; senderId: string; name: string; text: string; at: Date };
+export type Message = {
+	id: string;
+	senderId: string;
+	name: string;
+	text: string;
+	at: Date;
+	/** The first image on the message, which in a kills topic is the proof. */
+	image: string | null;
+};
 
 async function fetchMessages(env: Env, limit = 60): Promise<Message[]> {
 	const url = new URL(
 		`https://api.groupme.com/v3/groups/${env.GROUPME_KILLS_TOPIC}/messages`
 	);
 	url.searchParams.set('limit', String(limit));
+	// Omit this and attachments come back stripped. Undocumented; from the
+	// decompiled client.
+	url.searchParams.set('acceptFiles', '1');
 
 	const res = await fetch(url, { headers: { 'X-Access-Token': env.GROUPME_TOKEN! } });
 	if (!res.ok)
@@ -60,7 +71,11 @@ async function fetchMessages(env: Env, limit = 60): Promise<Message[]> {
 			senderId: String(m.user_id ?? ''),
 			name: String(m.name ?? ''),
 			text: String(m.text ?? ''),
-			at: new Date(Number(m.created_at) * 1000)
+			at: new Date(Number(m.created_at) * 1000),
+			image:
+				((m.attachments as { type?: string; url?: string }[] | undefined) ?? []).find(
+					(a) => a.type === 'image' && a.url
+				)?.url ?? null
 		}));
 }
 
@@ -109,6 +124,8 @@ export type Proposal = {
 	at: Date;
 	text: string;
 	announcedBy: string;
+	/** Posted with the announcement: the photograph of it being done. */
+	image: string | null;
 	killerGmId: string | null;
 	victimGmId: string | null;
 	/** How much to trust the guess, said plainly. */
@@ -142,7 +159,9 @@ export async function killProposals(db: DB, env: Env): Promise<Proposal[]> {
 		if (seen.has(m.id)) continue;
 
 		const named = namesIn(m.text, cards);
-		if (!named.length) continue;
+		// A bare photograph with no name in it is still worth showing: somebody
+		// can say who it is.
+		if (!named.length && !m.image) continue;
 
 		let killerGmId: string | null = null;
 		let victimGmId: string | null = null;
@@ -168,6 +187,7 @@ export async function killProposals(db: DB, env: Env): Promise<Proposal[]> {
 			at: m.at,
 			text: m.text.slice(0, 300),
 			announcedBy: m.name,
+			image: m.image,
 			killerGmId,
 			victimGmId,
 			basis

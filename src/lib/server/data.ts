@@ -35,6 +35,32 @@ export type RosterCard = {
 	class: string | null;
 };
 
+/**
+ * Photographs added since the join was built, by player.
+ *
+ * They live in their own table because `player` is deleted and rewritten every
+ * time the join runs, so anything filed during the game would last until the
+ * next rebuild and no longer.
+ */
+async function extras(db: DB, gmIds: string[]) {
+	if (!gmIds.length) return new Map<string, Player['photos']>();
+	const rows = await db
+		.select()
+		.from(schema.extraPhoto)
+		.where(inArray(schema.extraPhoto.gmId, gmIds));
+	const out = new Map<string, Player['photos']>();
+	for (const r of rows)
+		out.set(r.gmId, [...(out.get(r.gmId) ?? []), { url: r.url, rotate: 0 }]);
+	return out;
+}
+
+/** Fold those in, so callers get one list and never think about the join. */
+async function withExtras(db: DB, players: Player[]) {
+	const found = await extras(db, players.map((p) => p.gmId));
+	if (!found.size) return players;
+	return players.map((p) => (found.has(p.gmId) ? { ...p, extra: found.get(p.gmId) } : p));
+}
+
 const rehydrate = (r: typeof P.$inferSelect): Player => ({
 	gmId: r.gmId,
 	name: r.name,
@@ -59,16 +85,17 @@ const rehydrate = (r: typeof P.$inferSelect): Player => ({
 export const roster = (db: DB) => db.select(CARD).from(P).orderBy(P.name) as Promise<RosterCard[]>;
 
 export const everyone = async (db: DB) =>
-	(await db.select().from(P).orderBy(P.name)).map(rehydrate);
+	withExtras(db, (await db.select().from(P).orderBy(P.name)).map(rehydrate));
 
 export async function onePlayer(db: DB, gmId: string) {
 	const [row] = await db.select().from(P).where(eq(P.gmId, gmId)).limit(1);
-	return row ? rehydrate(row) : null;
+	if (!row) return null;
+	return (await withExtras(db, [rehydrate(row)]))[0];
 }
 
 export async function somePlayers(db: DB, gmIds: string[]) {
 	if (!gmIds.length) return [];
-	return (await db.select().from(P).where(inArray(P.gmId, gmIds))).map(rehydrate);
+	return withExtras(db, (await db.select().from(P).where(inArray(P.gmId, gmIds))).map(rehydrate));
 }
 
 export const exists = async (db: DB, gmId: string) =>

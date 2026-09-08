@@ -81,12 +81,16 @@
 					{#each data.groupme.proposals as p (p.messageId)}
 						<article class="row act" class:vouched={p.killerGmId && p.victimGmId}>
 							<div class="story">
-								<p class="quote">“{p.text}”</p>
+								{#if p.image}
+									<img class="proof" src={p.image} alt="" loading="lazy" />
+								{/if}
+								{#if p.text}<p class="quote">“{p.text}”</p>{/if}
 								<div class="legal">{p.announcedBy} · {when(p.at)} · {p.basis}</div>
 							</div>
 
 							<form method="POST" action="?/fromGroupMe" use:enhance class="read">
 								<input type="hidden" name="messageId" value={p.messageId} />
+								<input type="hidden" name="image" value={p.image ?? ''} />
 								<input
 									type="hidden"
 									name="killerGmId"
@@ -100,8 +104,9 @@
 								<div class="who">
 									<PlayerCombobox
 										options={data.roster}
+										extras={[{ value: '', label: "Nobody knows who got them" }]}
 										value={picked[p.messageId]?.killer ?? p.killerGmId ?? ''}
-										placeholder="Who got them"
+										placeholder="Nobody knows who got them"
 										onpick={(v) => choose(p.messageId, 'killer', v)}
 									/>
 									<span class="arrow">got</span>
@@ -113,7 +118,18 @@
 									/>
 								</div>
 								<div class="pair">
-									<Button size="sm" name="verdict" value="confirm" type="submit">Record it</Button>
+									<!-- Only the victim is required. Half the roster will never sign
+									     in, so insisting on a killer would mean half the kills could
+									     not be recorded at all. -->
+									<Button
+										size="sm"
+										name="verdict"
+										value="confirm"
+										type="submit"
+										disabled={!(picked[p.messageId]?.victim ?? p.victimGmId)}
+									>
+										Record it
+									</Button>
 									<Button size="sm" variant="outline" name="verdict" value="ignore" type="submit">
 										Not a kill
 									</Button>
@@ -501,6 +517,13 @@
 		.who {
 			grid-template-columns: 1fr;
 		}
+	}
+	.proof {
+		display: block;
+		max-height: 160px;
+		border-radius: 3px;
+		border: 1px solid var(--color-line);
+		margin-bottom: 8px;
 	}
 	.quote {
 		margin: 8px 0 4px;

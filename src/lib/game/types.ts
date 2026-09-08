@@ -29,6 +29,8 @@ export type Player = {
 	avatar: Shot | null;
 	photos: Shot[];
 	gallery?: Shot[];
+	/** Added while the game runs — a death photo, say. */
+	extra?: Shot[];
 	matched: boolean;
 	candidates?: Candidate[];
 	id?: string;
