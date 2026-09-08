@@ -155,7 +155,7 @@ async function sampleFor(db: DB, gmId: string | null) {
 	// Their real name and one real photograph — both of which the roster already
 	// shows — laid over an invented day. Everything under the name is false and
 	// is drawn behind glass; the two true things are the two you already had.
-	const sample = inventPlayer(map, 1 + (Number(mark) % 5), `preview:${mark}`);
+	const sample = inventPlayer(map, `preview:${mark}`);
 	sample.name = real.name;
 	sample.legalName = real.name;
 	sample.photos = real.photos.slice(0, 1);

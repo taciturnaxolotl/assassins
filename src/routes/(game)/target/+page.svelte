@@ -121,8 +121,11 @@
 		preview={waiting
 			? { why: 'Their file opens once somebody confirms you are who you say you are.' }
 			: {
-					why: 'Reporting your draw and your kills is free. Their file is not.',
-					cta: { label: 'Unlock the fancy tools', href: '/upgrade' }
+					why:
+						'Everything below is a mock-up. Reporting your draw and your kills is ' +
+						'free; their real file — photographs, hall and room, every section and ' +
+						'the walk between them — is not.',
+					buy: true
 				}}
 	/>
 {:else}

@@ -16,7 +16,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		term,
 		campus: map,
-		demo: map ? inventPlayer(map, day) : null,
+		demo: map ? inventPlayer(map) : null,
 		day,
 		signedIn: access.user ? { name: access.user.name, to: landingFor(access.tier) } : null
 	};

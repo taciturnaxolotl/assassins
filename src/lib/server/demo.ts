@@ -1,4 +1,4 @@
-// A person who does not exist, walking a day that never happened.
+// A person who does not exist, walking a week that never happened.
 //
 // The landing page has to show the thing rather than describe it, and the thing
 // is a route across campus. Everything here is invented: the name, the sections,
@@ -50,12 +50,12 @@ function rng(seed: string) {
 }
 
 /**
- * Invent a day plausible enough to draw. The person is openly nobody.
+ * Invent a week plausible enough to draw. The person is openly nobody.
  *
- * A seed makes it repeatable. Pass one wherever the same invented day has to
+ * A seed makes it repeatable. Pass one wherever the same invented week has to
  * come back the same way twice; leave it off and every call is a fresh one.
  */
-export function inventPlayer(campus: Campus, day: number, seed?: string): Player {
+export function inventPlayer(campus: Campus, seed?: string): Player {
 	const random = seed ? rng(seed) : Math.random;
 	const pick = <T,>(xs: T[]) => xs[Math.floor(random() * xs.length)];
 	const some = <T,>(xs: T[], n: number) => {
@@ -72,15 +72,26 @@ export function inventPlayer(campus: Campus, day: number, seed?: string): Player
 	const halls = anchored.filter((b) => /hall|hous|apartment/i.test(b));
 	const teaching = anchored.filter((b) => !halls.includes(b));
 
-	// Two to four classes, in buildings the map can anchor, so every leg of the
-	// walk has both ends on the map and actually draws.
-	const howMany = Math.min(teaching.length, 2 + Math.floor(random() * 3));
-	const rooms = some(teaching, howMany);
-	const slots = some(BLOCKS, rooms.length).sort(
-		(a, b) => BLOCKS.indexOf(a) - BLOCKS.indexOf(b)
-	);
+	// A whole week, the way one actually falls out: a few courses on Monday,
+	// Wednesday and Friday, a couple on Tuesday and Thursday. Generating a
+	// single day left four of the five empty, and a preview you can page
+	// through is the point of it.
+	const patterns: number[][] = [
+		[1, 3, 5],
+		[1, 3, 5],
+		[1, 3, 5],
+		[2, 4],
+		[2, 4]
+	];
 
-	const schedule: Course[] = rooms.map((building, i) => {
+	// Distinct blocks within each pattern, so nobody is in two rooms at once.
+	const mwf = some(BLOCKS, 3).sort((a, b) => BLOCKS.indexOf(a) - BLOCKS.indexOf(b));
+	const tth = some(BLOCKS, 2).sort((a, b) => BLOCKS.indexOf(a) - BLOCKS.indexOf(b));
+	const times = [...mwf, ...tth];
+
+	const rooms = some(teaching, Math.min(teaching.length, patterns.length));
+
+	const schedule: Course[] = patterns.slice(0, rooms.length).map((days, i) => {
 		const dept = pick(DEPT);
 		const code = `${dept}-${1000 + Math.floor(random() * 3000)}`;
 		return {
@@ -89,10 +100,10 @@ export function inventPlayer(campus: Campus, day: number, seed?: string): Player
 			title: pick(TITLE),
 			meets: [
 				{
-					days: [day],
-					start: slots[i][0],
-					end: slots[i][1],
-					building,
+					days,
+					start: times[i][0],
+					end: times[i][1],
+					building: rooms[i],
 					room: String(100 + Math.floor(random() * 250)),
 					online: false,
 					kind: 'Lecture'

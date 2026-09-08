@@ -1,17 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { buttonVariants } from '$lib/components/ui/button';
-	const paywalled = $derived(page.status === 402);
 </script>
 
 <main>
 	<h1>{page.status}</h1>
 	<p>{page.error?.message ?? 'Something broke.'}</p>
-	{#if paywalled}
-		<a class={buttonVariants()} href="/upgrade">Unlock the dossiers</a>
-	{:else}
-		<a class={buttonVariants({ variant: 'outline' })} href="/">Back to the start</a>
-	{/if}
+	<a class={buttonVariants({ variant: 'outline' })} href="/">Back to the start</a>
 </main>
 
 <style>

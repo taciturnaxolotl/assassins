@@ -34,11 +34,6 @@
 
 	const waiting = $derived(g.tier === 'pending');
 
-	// Selling the file before they have a target is selling nothing: they are
-	// still being set up, there is no dossier they are being kept out of, and
-	// the line is just something in the way. Waiting on approval is different —
-	// that is status, and it explains why the tabs are dim.
-	const pitch = $derived(!g.unlocked && !waiting && !!g.myTargetId);
 </script>
 
 <header>
@@ -65,16 +60,11 @@
 	</div>
 </header>
 
-{#if waiting || pitch}
+{#if waiting}
 	<div class="strip">
 		<span>
-			{#if waiting}
-				Your claim is in the queue. You can file your draw now; the roster opens
-				once somebody confirms it is you.
-			{:else}
-				This account can report but not read.
-				<a href="/upgrade">Unlock the dossiers</a> for schedules, dorms and the map.
-			{/if}
+			Your claim is in the queue. You can file your draw now; the file opens once
+			somebody confirms it is you.
 		</span>
 	</div>
 {/if}
@@ -162,10 +152,6 @@
 		color: var(--color-warn);
 		background: color-mix(in oklch, var(--color-warn) 9%, var(--color-bg));
 		border-bottom: 1px solid color-mix(in oklch, var(--color-warn) 25%, transparent);
-	}
-	.strip a {
-		color: var(--color-warn);
-		text-decoration: underline;
 	}
 
 	main {

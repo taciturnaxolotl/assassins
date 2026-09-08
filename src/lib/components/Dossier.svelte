@@ -9,7 +9,7 @@
 	import Itinerary from './Itinerary.svelte';
 	import WeekGrid from './WeekGrid.svelte';
 	import PlayerPicker from './PlayerPicker.svelte';
-	import { Button, buttonVariants } from '$lib/components/ui/button';
+	import { Button } from '$lib/components/ui/button';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import * as Alert from '$lib/components/ui/alert';
 	import { game } from '$lib/game/store.svelte';
@@ -28,7 +28,7 @@
 		 * name and the first photograph are real; everything under them is not,
 		 * and is not this person's. `why` is what it takes to see the real thing.
 		 */
-		preview?: { why: string; cta?: { label: string; href: string } } | null;
+		preview?: { why: string; buy?: boolean } | null;
 	} = $props();
 
 	const g = game();
@@ -116,10 +116,10 @@
 
 			{#if preview}
 				<p class="legal sealed">{preview.why}</p>
-				{#if preview.cta}
-					<a class="{buttonVariants({ size: 'lg' })} mt-3" href={preview.cta.href}>
-						{preview.cta.label}
-					</a>
+				{#if preview.buy}
+					<form method="POST" action="/api/billing/checkout" class="buy">
+						<Button type="submit" size="lg">Unlock the fancy tools</Button>
+					</form>
 				{/if}
 			{:else if !g.me}
 				<p class="legal">Once your claim is approved you can work the chain from here.</p>

@@ -2,7 +2,7 @@
 	// The fallback when there is no sample to draw — no campus, or a mark the
 	// build never resolved. Everything on it is true and about them; it just
 	// cannot show the shape of the file the way the frosted dossier does.
-	import { buttonVariants } from '$lib/components/ui/button';
+	import { Button } from '$lib/components/ui/button';
 	import * as Table from '$lib/components/ui/table';
 	import type { Teaser } from '$lib/server/data';
 
@@ -48,7 +48,9 @@
 		</div>
 	{/if}
 
-	<a class={buttonVariants({ size: 'lg' })} href="/upgrade">Unlock the fancy tools</a>
+	<form method="POST" action="/api/billing/checkout">
+		<Button type="submit" size="lg">Unlock the fancy tools</Button>
+	</form>
 </div>
 
 <style>
