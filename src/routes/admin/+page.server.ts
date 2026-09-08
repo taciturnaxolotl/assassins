@@ -12,7 +12,8 @@ import { mayWrite } from '$lib/server/access';
 import { desc, eq } from 'drizzle-orm';
 import { schema } from '$lib/server/db';
 import { exists, roster } from '$lib/server/data';
-import { clearKill, confirmKill, loadChain, pendingKills } from '$lib/server/game';
+import { clearKill, confirmKill, loadChain, pendingKills, setKill } from '$lib/server/game';
+import { enabled as groupmeOn, killProposals, markSeen } from '$lib/server/groupme';
 import { targetOf } from '$lib/game/chain';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -23,7 +24,7 @@ const guard = (locals: App.Locals, writing = true) => {
 	return locals.access.user!;
 };
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	guard(locals, false);
 	const { db } = locals;
 
@@ -66,7 +67,21 @@ export const load: PageServerLoad = async ({ locals }) => {
 		claims.filter((c) => c.claim.status === 'approved' && c.claim.gmId).map((c) => c.claim.gmId!)
 	);
 
+	// Reading the topic means a call out to GroupMe, so it only happens when
+	// asked for rather than on every page load.
+	const syncing = url.searchParams.has('sync');
+	let proposals: Awaited<ReturnType<typeof killProposals>> = [];
+	let syncError: string | null = null;
+	if (syncing) {
+		try {
+			proposals = await killProposals(db, locals.env);
+		} catch (e) {
+			syncError = (e as Error).message;
+		}
+	}
+
 	return {
+		groupme: { on: groupmeOn(locals.env), synced: syncing, proposals, error: syncError },
 		needs: {
 			claims: rows.filter((r) => r.status === 'pending'),
 			// Until a kill is confirmed the victim is still hunting and the killer
@@ -159,6 +174,33 @@ export const actions: Actions = {
 		}
 		await clearKill(locals.db, victimGmId);
 		return { message: 'Claim thrown out.' };
+	},
+
+	// A proposal read out of the kills topic, agreed with or waved away.
+	fromGroupMe: async ({ request, locals }) => {
+		const admin = guard(locals);
+		const form = await request.formData();
+		const messageId = String(form.get('messageId') ?? '');
+		const killerGmId = String(form.get('killerGmId') ?? '');
+		const victimGmId = String(form.get('victimGmId') ?? '');
+		if (!messageId) return fail(400, { message: 'Which message?' });
+
+		if (form.get('verdict') !== 'confirm') {
+			await markSeen(locals.db, messageId, 'ignored', admin.id);
+			return { message: 'Left alone.' };
+		}
+
+		if (!victimGmId) return fail(400, { message: 'No victim to record.' });
+		try {
+			// Straight to confirmed: an admin reading the announcement is the
+			// confirmation, so making them approve their own entry twice is
+			// ceremony.
+			await setKill(locals.db, victimGmId, killerGmId || null, admin.id, true);
+		} catch (e) {
+			return fail(400, { message: (e as Error).message });
+		}
+		await markSeen(locals.db, messageId, 'confirmed', admin.id);
+		return { message: 'Recorded from GroupMe.' };
 	},
 
 	comp: async ({ request, locals }) => {

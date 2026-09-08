@@ -182,3 +182,13 @@ export const bid = sqliteTable(
 	},
 	(t) => [primaryKey({ columns: [t.contractId, t.hitmanUserId] })]
 );
+
+// A message from the kills topic that somebody has already dealt with, so it
+// stops being proposed. Kept even when ignored — otherwise every sync offers
+// the same message somebody has already looked at and said no to.
+export const groupmeSeen = sqliteTable('groupme_seen', {
+	messageId: text('message_id').primaryKey(),
+	outcome: text('outcome').notNull(), // confirmed | ignored
+	decidedBy: text('decided_by').references(() => user.id, { onDelete: 'set null' }),
+	decidedAt: integer('decided_at', { mode: 'timestamp' }).notNull()
+});

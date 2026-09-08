@@ -37,6 +37,10 @@ export type Env = {
 	POLAR_SERVER?: string;
 	POLAR_PRODUCT_ID?: string;
 	ADMIN_USERNAMES?: string;
+	/** Reading the kills topic. Without it that whole feature is absent. */
+	GROUPME_TOKEN?: string;
+	GROUPME_GROUP?: string;
+	GROUPME_KILLS_TOPIC?: string;
 };
 
 /** The origin to build public URLs from, which is not always the one we saw. */

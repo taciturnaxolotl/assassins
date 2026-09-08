@@ -10,6 +10,11 @@
 
 	let fixing = $state<string | null>(null);
 	let fixTo = $state<Record<string, string>>({});
+
+	// What an admin has changed a GroupMe proposal to, before recording it.
+	let picked = $state<Record<string, { killer?: string; victim?: string }>>({});
+	const choose = (id: string, side: 'killer' | 'victim', v: string) =>
+		(picked = { ...picked, [id]: { ...picked[id], [side]: v } });
 	let q = $state('');
 
 	const waiting = $derived(data.needs.claims.length + data.needs.kills.length);
@@ -49,6 +54,77 @@
 	{/if}
 
 	<!-- ── what needs a person ──────────────────────────────────────────── -->
+
+	{#if data.groupme.on}
+		<section>
+			<h2 class="rule">From the kills topic</h2>
+			{#if data.groupme.error}
+				<Alert.Root variant="destructive" class="mb-3">
+					<Alert.Description>{data.groupme.error}</Alert.Description>
+				</Alert.Root>
+			{/if}
+
+			{#if !data.groupme.synced}
+				<p class="legal">
+					People announce kills in GroupMe long before they think to open this.
+					Reading the topic asks GroupMe for the last sixty messages.
+				</p>
+				<Button class="mt-3" href="/admin?sync">Read the kills topic</Button>
+			{:else if !data.groupme.proposals.length}
+				<p class="empty">Nothing in there that has not been dealt with.</p>
+			{:else}
+				<p class="legal">
+					The sender is certain; the victim is a guess, and the message is
+					underneath so you can see what it is guessing from.
+				</p>
+				<div class="rows">
+					{#each data.groupme.proposals as p (p.messageId)}
+						<article class="row act" class:vouched={p.killerGmId && p.victimGmId}>
+							<div class="story">
+								<p class="quote">“{p.text}”</p>
+								<div class="legal">{p.announcedBy} · {when(p.at)} · {p.basis}</div>
+							</div>
+
+							<form method="POST" action="?/fromGroupMe" use:enhance class="read">
+								<input type="hidden" name="messageId" value={p.messageId} />
+								<input
+									type="hidden"
+									name="killerGmId"
+									value={picked[p.messageId]?.killer ?? p.killerGmId ?? ''}
+								/>
+								<input
+									type="hidden"
+									name="victimGmId"
+									value={picked[p.messageId]?.victim ?? p.victimGmId ?? ''}
+								/>
+								<div class="who">
+									<PlayerCombobox
+										options={data.roster}
+										value={picked[p.messageId]?.killer ?? p.killerGmId ?? ''}
+										placeholder="Who got them"
+										onpick={(v) => choose(p.messageId, 'killer', v)}
+									/>
+									<span class="arrow">got</span>
+									<PlayerCombobox
+										options={data.roster}
+										value={picked[p.messageId]?.victim ?? p.victimGmId ?? ''}
+										placeholder="Who went down"
+										onpick={(v) => choose(p.messageId, 'victim', v)}
+									/>
+								</div>
+								<div class="pair">
+									<Button size="sm" name="verdict" value="confirm" type="submit">Record it</Button>
+									<Button size="sm" variant="outline" name="verdict" value="ignore" type="submit">
+										Not a kill
+									</Button>
+								</div>
+							</form>
+						</article>
+					{/each}
+				</div>
+			{/if}
+		</section>
+	{/if}
 
 	{#if data.needs.kills.length}
 		<section>
@@ -404,6 +480,34 @@
 		color: var(--color-warn);
 	}
 
+	.read {
+		display: grid;
+		gap: 10px;
+		flex: 1 1 340px;
+	}
+	.who {
+		display: grid;
+		grid-template-columns: 1fr auto 1fr;
+		gap: 8px;
+		align-items: center;
+	}
+	.who .arrow {
+		font-size: 10px;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--color-faint);
+	}
+	@media (max-width: 620px) {
+		.who {
+			grid-template-columns: 1fr;
+		}
+	}
+	.quote {
+		margin: 8px 0 4px;
+		font-family: var(--font-serif);
+		font-size: 15px;
+		color: var(--color-dim);
+	}
 	.pitch {
 		margin-top: 10px;
 		font-family: var(--font-serif);
