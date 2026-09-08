@@ -15,12 +15,15 @@
 		people,
 		day,
 		onday,
-		compact = false
+		compact = false,
+		marks = []
 	}: {
 		people: Player[];
 		day: number;
 		onday?: (d: number) => void;
 		compact?: boolean;
+		/** Places worth standing, drawn over the route rather than in it. */
+		marks?: { x: number; y: number; label: string }[];
 	} = $props();
 
 	const g = game();
@@ -330,6 +333,14 @@
 					{/if}
 				{/each}
 			</g>
+			<g class="marks">
+				{#each marks as m, i (i)}
+					<circle cx={m.x} cy={m.y} />
+					{#if !compact}
+						<text x={m.x + 11} y={m.y - 6}>{m.label}</text>
+					{/if}
+				{/each}
+			</g>
 			<g class="labels">
 				{#each labelled as b, i (i)}
 					<text x={b.at[0]} y={b.at[1]}>{b.label}</text>
@@ -446,6 +457,22 @@
 		font-family: var(--font-mono);
 		font-weight: 500;
 		font-size: max(calc(10px * var(--k, 1)), 5px);
+	}
+
+	/* A crossing is a place to wait, not a place either of you is going, so it
+	   reads as a ring around the map rather than another pin on it. */
+	.marks circle {
+		fill: none;
+		stroke: var(--color-warn);
+		stroke-width: 2;
+		vector-effect: non-scaling-stroke;
+		r: max(calc(11px * var(--k, 1)), 6px);
+	}
+	.marks text {
+		fill: var(--color-warn);
+		font-family: var(--font-mono);
+		font-weight: 600;
+		font-size: max(calc(9px * var(--k, 1)), 5px);
 	}
 
 	.labels text {

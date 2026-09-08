@@ -9,7 +9,7 @@
 import type { Campus, Player } from './types';
 import { dayOf, type Slot } from './time';
 
-const PACE = 84; // metres a minute, walking like you have somewhere to be
+export const PACE = 84; // metres a minute, walking like you have somewhere to be
 
 export type Leg = { path: number[]; metres: number; minutes: number; gap: number | null };
 export type Stop = { s: Slot; node: number | null; leg?: Leg };
