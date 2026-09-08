@@ -48,6 +48,8 @@ export type Message = {
 	at: Date;
 	/** The first image on the message, which in a kills topic is the proof. */
 	image: string | null;
+	/** GroupMe talking about the conversation rather than somebody in it. */
+	system: boolean;
 };
 
 async function fetchMessages(env: Env, topic: string, limit = 60): Promise<Message[]> {
@@ -77,6 +79,12 @@ async function fetchMessages(env: Env, topic: string, limit = 60): Promise<Messa
 			senderId: String(m.user_id ?? ''),
 			name: String(m.name ?? ''),
 			text: String(m.text ?? ''),
+			// "X edited to: …", "A message was deleted", "X changed the topic's
+			// type". These quote the announcement they are about, so they read as
+			// a second copy of a kill that has already been dealt with — and one
+			// of them proposed the announcer as the victim, because his name was
+			// in the notice about his own post.
+			system: m.sender_type === 'system' || String(m.name ?? '') === 'GroupMe',
 			at: new Date(Number(m.created_at) * 1000),
 			image:
 				((m.attachments as { type?: string; url?: string }[] | undefined) ?? []).find(
@@ -125,6 +133,87 @@ function namesIn(text: string, cards: { gmId: string; name: string }[]) {
 	);
 }
 
+/** Levenshtein, but it stops caring past `max`. Nothing here needs the number. */
+function near(a: string, b: string, max = 1) {
+	if (a === b) return 0;
+	if (Math.abs(a.length - b.length) > max) return max + 1;
+	let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+	for (let i = 1; i <= a.length; i++) {
+		const row = [i];
+		let best = i;
+		for (let j = 1; j <= b.length; j++) {
+			row[j] = Math.min(
+				prev[j] + 1,
+				row[j - 1] + 1,
+				prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+			);
+			best = Math.min(best, row[j]);
+		}
+		if (best > max) return max + 1;
+		prev = row;
+	}
+	return prev[b.length];
+}
+
+/**
+ * Ranked guesses, for when the message will not resolve to one person.
+ *
+ * `namesIn` is deliberately unwilling: it would rather say nothing than pick
+ * the wrong Silas. That is right for filling a field in and useless for the
+ * person reading the queue, who then has to search a roster of seventy-nine by
+ * hand. So the same text gets read a second way, generously, and whatever it
+ * turns up is offered rather than applied.
+ *
+ * Three real announcements from this game's kills topic, none of which `namesIn`
+ * would touch:
+ *
+ *   "Obituary: I died - Silas 2026" — two Silases on the roster.
+ *   "-Jason Lossman"               — the roster spells it Lossmann.
+ *   "In Memoriam: Gabriel Sanderson II" — not on the roster at all, and
+ *                                        nothing is the honest answer.
+ */
+export function candidatesIn(text: string, cards: { gmId: string; name: string }[]) {
+	const words: string[] = text.toLowerCase().match(/[\p{L}']+/gu) ?? [];
+	if (!words.length) return [];
+	const hay = text.toLowerCase();
+
+	const out: { gmId: string; name: string; why: string; score: number }[] = [];
+	for (const c of cards) {
+		const parts = c.name.toLowerCase().split(/\s+/).filter(Boolean);
+		const first = parts[0] ?? '';
+		const last = parts.length > 1 ? parts[parts.length - 1] : '';
+		let score = 0;
+		let why = '';
+
+		if (hay.includes(c.name.toLowerCase())) {
+			score = 100;
+			why = 'named in full';
+		} else {
+			if (last) {
+				if (words.includes(last)) {
+					score += 50;
+					why = 'surname';
+				} else if (words.some((v) => v.length > 3 && near(v, last) <= 1)) {
+					score += 40;
+					why = 'surname, spelled differently';
+				}
+			}
+			if (first) {
+				if (words.includes(first)) {
+					score += 12;
+					why = why || 'first name';
+				} else if (words.some((v) => v.length > 2 && near(v, first) <= 1)) {
+					score += 8;
+					why = why || 'first name, spelled differently';
+				}
+			}
+		}
+		if (score > 0) out.push({ gmId: c.gmId, name: c.name, why, score });
+	}
+
+	return out.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)).slice(0, 5);
+}
+
 export type Proposal = {
 	messageId: string;
 	at: Date;
@@ -136,6 +225,8 @@ export type Proposal = {
 	victimGmId: string | null;
 	/** How much to trust the guess, said plainly. */
 	basis: string;
+	/** Offered, never applied: who this might be about. */
+	picks: { gmId: string; name: string; why: string }[];
 };
 
 export async function killProposals(db: DB, env: Env): Promise<Proposal[]> {
@@ -162,7 +253,7 @@ export async function killProposals(db: DB, env: Env): Promise<Proposal[]> {
 
 	const out: Proposal[] = [];
 	for (const m of messages) {
-		if (seen.has(m.id)) continue;
+		if (seen.has(m.id) || m.system) continue;
 
 		const named = namesIn(m.text, cards);
 		// A bare photograph with no name in it is still worth showing: somebody
@@ -177,13 +268,20 @@ export async function killProposals(db: DB, env: Env): Promise<Proposal[]> {
 			// Announcements read "X got Y" far more often than the reverse.
 			[killerGmId, victimGmId] = named;
 			basis = 'two names, in the order they appear';
-		} else {
+		} else if (named.length === 1) {
 			// One name. The ring says who was hunting them, which is a better
 			// guess than anything the sentence can offer.
 			victimGmId = named[0];
 			const hunter = cards.find((c) => targetOf(chain, c.gmId) === victimGmId);
 			killerGmId = hunter?.gmId ?? null;
-			basis = hunter ? 'one name; the ring says who was hunting them' : 'one name, and nothing says who got them';
+			basis = hunter
+				? 'one name; the ring says who was hunting them'
+				: 'one name, and nothing says who got them';
+		} else {
+			// Nothing it would commit to. Saying "one name" here was a lie the
+			// queue told about itself for a while.
+			victimGmId = null;
+			basis = 'no roster name it would commit to';
 		}
 
 		if (victimGmId && dead.has(victimGmId)) continue;
@@ -196,7 +294,9 @@ export async function killProposals(db: DB, env: Env): Promise<Proposal[]> {
 			image: m.image,
 			killerGmId,
 			victimGmId,
-			basis
+			basis,
+			// Only worth offering where the confident read came up short.
+			picks: victimGmId ? [] : candidatesIn(m.text, cards)
 		});
 	}
 
@@ -281,7 +381,7 @@ export async function readSnipes(db: DB, env: Env): Promise<Snipe[]> {
 
 	const out: Snipe[] = [];
 	for (const m of messages) {
-		if (seen.has(m.id) || !m.image) continue;
+		if (seen.has(m.id) || m.system || !m.image) continue;
 
 		const sole = soleName(m.text, cards);
 		if (sole)

@@ -14,7 +14,7 @@
 	import * as Alert from '$lib/components/ui/alert';
 	import { game } from '$lib/game/store.svelte';
 	import { CLASS, DAYS, WEEK, dayOf, hhmm, place } from '$lib/game/time';
-	import { crossings, span } from '$lib/game/cross';
+	import { actionable, crossings, span } from '$lib/game/cross';
 	import type { Player } from '$lib/game/types';
 
 	let {
@@ -68,8 +68,9 @@
 	const touches = $derived(
 		g.walker && mine ? crossings(g.walker, g.slots, mine, player, day) : []
 	);
+	// Only the ones you could act on get drawn. The rest stay in the list.
 	const marks = $derived(
-		touches.map((c) => ({ x: c.x, y: c.y, label: hhmm(Math.round(c.from)) }))
+		touches.filter(actionable).map((c) => ({ x: c.x, y: c.y, label: hhmm(Math.round(c.from)) }))
 	);
 
 	// Only set once the ring has routed around somebody: their live target is
@@ -258,11 +259,13 @@
 					<p class="note">
 						Nobody records when somebody left for class, only when it starts, so a
 						walk is a window and not a moment. The longer the window, the more of
-						it you would have to stand around for.
+						it you would have to stand around for. Only the ones short enough to
+						wait out, in a room small enough to be noticed in, are marked on the
+						map.
 					</p>
 					<ul>
 						{#each touches as c, i (i)}
-							<li>
+							<li class:quiet={!actionable(c)}>
 								<span class="when">{span(c)}</span>
 								<span class="at">{c.near ?? 'open ground'}</span>
 								<span class="doing">you {c.mine}, they {c.theirs}</span>
@@ -450,6 +453,12 @@
 	.touch .doing,
 	.touch .crowd {
 		color: var(--color-dim);
+	}
+	/* An hour in a crowded hall is worth knowing once and is not worth walking
+	   to, so it stays in the list and steps back out of the way. */
+	.touch li.quiet {
+		border-left-color: var(--color-line);
+		opacity: 0.62;
 	}
 	.touch .crowd {
 		font-size: 12px;

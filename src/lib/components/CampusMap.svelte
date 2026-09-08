@@ -517,7 +517,12 @@
 		stroke-opacity: 0.8;
 		stroke-linecap: round;
 		stroke-linejoin: round;
-		stroke-dasharray: 7 5;
+		/* The dash pattern is measured in map metres while the stroke width is
+		   measured in screen pixels, so left alone the two drift apart: at close
+		   range the dashes stretch into long thin bars, and zooming out packs
+		   them into a solid line. Scaling the pattern by the same factor the
+		   labels use holds it still on screen at every zoom. */
+		stroke-dasharray: calc(7px * var(--k, 1)) calc(5px * var(--k, 1));
 		vector-effect: non-scaling-stroke;
 	}
 	.ours circle {

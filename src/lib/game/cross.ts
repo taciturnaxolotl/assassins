@@ -135,7 +135,14 @@ export function crossings(
 			const to = Math.min(a.to, b.to);
 			if (to < from) continue;
 			if (gap(c, a.node, b.node) > radius) continue;
-			const [x, y] = at(c, a.node);
+			// Halfway between the two of you. Drawn at your own node it lands
+			// inside whatever building you are sat in while they walk past
+			// outside it, which points at the wrong place by the width of a
+			// lecture hall.
+			const [ax, ay] = at(c, a.node);
+			const [bx, by] = at(c, b.node);
+			const x = (ax + bx) / 2;
+			const y = (ay + by) / 2;
 			hits.push({
 				x,
 				y,
@@ -161,7 +168,7 @@ export function crossings(
 	// Two hits count as the same place when they are close on the graph or hang
 	// off the same building, which is how a person would say it: you wait
 	// outside the library, not at node 1841.
-	const merged: (Crossing & { seed: [number, number] })[] = [];
+	const merged: (Crossing & { seed: [number, number]; n: number })[] = [];
 	for (const h of hits.sort((p, q) => p.from - q.from || p.to - q.to)) {
 		const near = merged.find(
 			(m) =>
@@ -177,9 +184,14 @@ export function crossings(
 			near.from = Math.min(near.from, h.from);
 			near.to = Math.max(near.to, h.to);
 			near.minutes = Math.round(near.to - near.from);
+			// The mark belongs in the middle of the stretch it stands for, not on
+			// whichever end of it happened to sort first.
+			near.n += 1;
+			near.x += (h.x - near.x) / near.n;
+			near.y += (h.y - near.y) / near.n;
 			continue;
 		}
-		merged.push({ ...h, seed: [h.from, h.to] });
+		merged.push({ ...h, seed: [h.from, h.to], n: 1 });
 	}
 
 	// Everybody is in chapel at ten. A place is only an opportunity if it is not
@@ -197,10 +209,27 @@ export function crossings(
 	}
 
 	return merged
-		.map(({ seed: _seed, ...m }) => m)
+		.map(({ seed: _seed, n: _n, ...m }) => m)
 		.sort((p, q) => p.from - q.from);
 }
 
 /** "9:50 to 10:05", or just "9:50" when the window is a moment. */
 export const span = (c: Crossing) =>
 	c.minutes < 2 ? hhmm(Math.round(c.from)) : `${hhmm(Math.round(c.from))} to ${hhmm(Math.round(c.to))}`;
+
+/**
+ * Whether a crossing is worth marking on the map.
+ *
+ * The list keeps everything, because "you two share an hour of chapel with
+ * seventy-seven other people" is a true and useful thing to know once. But
+ * drawing it is what made the map look wrong: nearly half of all crossings are
+ * a whole class period long and about two thirds happen in a crowd, so marking
+ * them peppered the campus with rings at every lecture hall and told you
+ * nothing about where to stand.
+ *
+ * What is left is roughly one mark per person per day, and the numbers are not
+ * finely tuned: anything from eight to twenty others, and twenty-five to
+ * forty-five minutes, keeps the same quarter of them. The split is between
+ * kinds of event, not between thresholds.
+ */
+export const actionable = (c: Crossing) => c.others <= 12 && c.minutes <= 30;

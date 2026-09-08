@@ -125,6 +125,16 @@
 										onpick={(v) => choose(p.messageId, 'victim', v)}
 									/>
 								</div>
+								{#if p.picks.length && !(picked[p.messageId]?.victim ?? p.victimGmId)}
+									<div class="picks">
+										<span>did you mean</span>
+										{#each p.picks as k (k.gmId)}
+											<button type="button" onclick={() => choose(p.messageId, 'victim', k.gmId)}>
+												{k.name}<em>{k.why}</em>
+											</button>
+										{/each}
+									</div>
+								{/if}
 								<div class="pair">
 									<!-- Only the victim is required. Half the roster will never sign
 									     in, so insisting on a killer would mean half the kills could
@@ -565,6 +575,44 @@
 	.row.agent {
 		border-left-color: var(--color-dim);
 	}
+	/* Offered, not applied. The reason rides along so a wrong guess is visibly
+	   a guess rather than something the queue decided. */
+	.picks {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 6px;
+		margin: 8px 0 2px;
+		font-size: 12px;
+	}
+	.picks > span {
+		color: var(--color-dim);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		font-size: 11px;
+	}
+	.picks button {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 5px;
+		background: var(--color-panel);
+		border: 1px solid var(--color-line);
+		border-radius: 3px;
+		padding: 3px 8px;
+		color: var(--color-ink);
+		font: inherit;
+		font-size: 12px;
+		cursor: pointer;
+	}
+	.picks button:hover {
+		border-color: var(--color-warn);
+	}
+	.picks em {
+		color: var(--color-dim);
+		font-style: normal;
+		font-size: 11px;
+	}
+
 	.row.toggle {
 		display: flex;
 		align-items: center;

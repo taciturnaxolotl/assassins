@@ -103,10 +103,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	let syncError: string | null = null;
 	if (syncing) {
 		try {
-			[proposals, snipes] = await Promise.all([
+			const [kills, allSnipes] = await Promise.all([
 				groupmeOn(locals.env) ? killProposals(db, locals.env) : [],
 				readSnipes(db, locals.env)
 			]);
+			proposals = kills;
+			// The ones that file themselves are the sync's job, not a person's.
+			// Listing them here asked to be told twice about a decision already
+			// made.
+			snipes = allSnipes.filter((x) => !x.filed);
 		} catch (e) {
 			syncError = (e as Error).message;
 		}
