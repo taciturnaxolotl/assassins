@@ -1,6 +1,6 @@
 <script lang="ts">
-	// A player's name, anywhere. Clicking one opens the same dossier the Target
-	// tab shows, which is why there is only ever one detail view to maintain.
+	// A player's name, anywhere. Every one of them goes to the same page the
+	// Target tab renders, so there is only ever one detail view to keep honest.
 	import { game } from '$lib/game/store.svelte';
 
 	let { id }: { id: string | null | undefined } = $props();
@@ -8,7 +8,7 @@
 </script>
 
 {#if id}
-	<button class="who" class:gone={g.dead(id)} onclick={() => g.show(id)}>{g.name(id)}</button>
+	<a class="who" class:gone={g.dead(id)} href="/player/{id}">{g.name(id)}</a>
 {:else}
 	<span class="faint">—</span>
 {/if}

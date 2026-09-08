@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import PlayerCombobox from '$lib/components/PlayerCombobox.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Input } from '$lib/components/ui/input';
-	import * as Select from '$lib/components/ui/select';
 	import * as Alert from '$lib/components/ui/alert';
 	let { data, form } = $props();
 
@@ -14,6 +14,7 @@
 	});
 
 	let open = $state<string | null>(null);
+	let fixTo = $state<Record<string, string>>({});
 </script>
 
 <svelte:head><title>Queue · Assassins</title></svelte:head>
@@ -143,13 +144,13 @@
 							{#if open === r.userId}
 								<form method="POST" action="?/decide" class="fix" use:enhance>
 									<input type="hidden" name="userId" value={r.userId} />
-									<select class="native" name="gmId" autocomplete="off">
-										{#each data.roster as p (p.gmId)}
-											<option value={p.gmId} selected={p.gmId === r.gmId}>
-												{p.name}{p.matched ? '' : ' (unidentified)'}
-											</option>
-										{/each}
-									</select>
+									<input type="hidden" name="gmId" value={fixTo[r.userId] ?? r.gmId} />
+									<PlayerCombobox
+										options={data.roster}
+										value={fixTo[r.userId] ?? r.gmId ?? ''}
+										placeholder="Pick the right player"
+										onpick={(v) => (fixTo = { ...fixTo, [r.userId]: v })}
+									/>
 									<Input name="verdict" autocomplete="off" placeholder="why, for the record" />
 									<Button size="sm" name="status" value="approved" type="submit">
 										Approve as this player instead
@@ -229,15 +230,6 @@
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--color-faint);
-	}
-	.native {
-		width: 100%;
-		font: 400 12px/1.4 var(--font-mono);
-		color: var(--color-ink);
-		background: var(--color-bg);
-		border: 1px solid var(--color-line);
-		border-radius: 3px;
-		padding: 8px 10px;
 	}
 	.legal.live {
 		color: var(--color-live);

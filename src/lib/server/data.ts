@@ -40,6 +40,7 @@ const rehydrate = (r: typeof P.$inferSelect): Player => ({
 	name: r.name,
 	avatar: r.avatar ?? null,
 	photos: r.photos ?? [],
+	gallery: r.gallery ?? [],
 	matched: r.matched,
 	candidates: r.candidates ?? undefined,
 	id: r.studentId ?? undefined,
@@ -180,7 +181,8 @@ export async function teaser(db: DB, gmId: string) {
 	return {
 		gmId: r.gmId,
 		name: r.name,
-		shots: [r.avatar, ...(r.photos ?? []), r.directoryPhoto].filter(Boolean).length,
+		shots: [r.avatar, ...(r.photos ?? []), ...(r.gallery ?? []), r.directoryPhoto].filter(Boolean)
+		.length,
 		sections: r.schedule?.length ?? 0,
 		meetings: (r.schedule ?? []).reduce((n, c) => n + (c.meets?.length ?? 0), 0),
 		buildings: new Set(

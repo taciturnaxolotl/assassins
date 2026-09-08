@@ -1,6 +1,8 @@
 <script lang="ts">
-	// One list of everyone, used everywhere a name has to be chosen.
-	import * as Select from '$lib/components/ui/select';
+	// Wherever a name has to be chosen from the whole roster. Ninety-nine
+	// options is well past what a plain select is good for, so this is the
+	// searchable one with the picker's two extra rows on top.
+	import PlayerCombobox from './PlayerCombobox.svelte';
 	import { game } from '$lib/game/store.svelte';
 
 	let {
@@ -16,19 +18,14 @@
 	} = $props();
 
 	const g = game();
-	const label = $derived(
-		value === '' ? placeholder : value === '?' ? (unknown ?? '—') : g.name(value)
+	const options = $derived(
+		g.alphabetical.map((p) => ({ ...p, dead: g.dead(p.gmId) }))
 	);
+	const extras = $derived([
+		{ value: '', label: placeholder },
+		...(unknown ? [{ value: '?', label: unknown }] : [])
+	]);
+
 </script>
 
-<Select.Root type="single" {value} onValueChange={onpick}>
-	<Select.Trigger class="w-full">{label}</Select.Trigger>
-	<Select.Content>
-		<Select.Item value="">{placeholder}</Select.Item>
-		{#if unknown}<Select.Item value="?">{unknown}</Select.Item>{/if}
-		<Select.Separator />
-		{#each g.alphabetical as p (p.gmId)}
-			<Select.Item value={p.gmId}>{p.name}{g.dead(p.gmId) ? ' ✝' : ''}</Select.Item>
-		{/each}
-	</Select.Content>
-</Select.Root>
+<PlayerCombobox {options} {extras} {placeholder} {value} {onpick} />

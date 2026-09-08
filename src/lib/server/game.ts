@@ -63,6 +63,14 @@ export async function setKill(
 ) {
 	await real(db, victimGmId);
 	if (killerGmId) await real(db, killerGmId);
+
+	// One row per victim, so a second claim would quietly overwrite the first.
+	// Whoever runs the game may do that deliberately; nobody else may take a
+	// claim off somebody by making their own.
+	const existing = await killRow(db, victimGmId);
+	if (existing && !confirmed && existing.killerGmId !== killerGmId)
+		throw new Error('Somebody else has already reported this one.');
+
 	await db
 		.insert(schema.kill)
 		.values({ victimGmId, killerGmId, reportedBy: userId, confirmed, createdAt: new Date() })
@@ -70,6 +78,16 @@ export async function setKill(
 			target: schema.kill.victimGmId,
 			set: { killerGmId, reportedBy: userId, confirmed }
 		});
+}
+
+/** The raw row, confirmed or not — `loadChain` only ever shows confirmed ones. */
+export async function killRow(db: DB, victimGmId: string) {
+	const [row] = await db
+		.select()
+		.from(schema.kill)
+		.where(eq(schema.kill.victimGmId, victimGmId))
+		.limit(1);
+	return row ?? null;
 }
 
 /**

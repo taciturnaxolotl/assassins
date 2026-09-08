@@ -6,7 +6,7 @@
 // Everything else is the admin's.
 
 import { error, json } from '@sveltejs/kit';
-import { chainFor, clearKill, loadChain, setAssignment, setKill } from '$lib/server/game';
+import { chainFor, clearKill, killRow, setAssignment, setKill } from '$lib/server/game';
 import { isPlayer } from '$lib/server/access';
 import type { RequestHandler } from './$types';
 
@@ -47,9 +47,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			case 'revive': {
 				const victim = body.victimGmId;
 				if (!victim) error(400, 'Who?');
-				const chain = await loadChain(db);
-				const mine = chain.kills[victim] === me || victim === me;
+				// The raw row, not the chain: an unconfirmed claim is invisible to
+				// `loadChain`, so checking there would stop somebody taking back
+				// the very claim they had just made.
+				const row = await killRow(db, victim);
+				if (!row) error(404, 'Nothing reported.');
+				const mine = row.killerGmId === me || victim === me;
 				if (!mine && !admin) error(403, 'Not yours to undo.');
+				if (row.confirmed && !admin) error(403, 'That one is settled.');
 				await clearKill(db, victim);
 				break;
 			}

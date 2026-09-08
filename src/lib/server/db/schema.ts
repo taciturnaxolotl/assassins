@@ -99,6 +99,8 @@ export const player = sqliteTable('player', {
 	name: text('name').notNull(),
 	avatar: text('avatar', { mode: 'json' }).$type<Shot | null>(),
 	photos: text('photos', { mode: 'json' }).$type<Shot[]>().notNull(),
+	/** The gallery on their GroupMe profile, if they have set one up. */
+	gallery: text('gallery', { mode: 'json' }).$type<Shot[]>().notNull().default([]),
 	matched: integer('matched', { mode: 'boolean' }).notNull(),
 	candidates: text('candidates', { mode: 'json' }).$type<Candidate[] | null>(),
 

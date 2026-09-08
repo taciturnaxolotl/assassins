@@ -28,6 +28,7 @@ export type Player = {
 	name: string;
 	avatar: Shot | null;
 	photos: Shot[];
+	gallery?: Shot[];
 	matched: boolean;
 	candidates?: Candidate[];
 	id?: string;

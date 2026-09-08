@@ -3,7 +3,6 @@
 	import { page } from '$app/state';
 	import { Game, provide } from '$lib/game/store.svelte';
 	import { DAYS, hhmm } from '$lib/game/time';
-	import PlayerSheet from '$lib/components/PlayerSheet.svelte';
 
 	let { data, children } = $props();
 
@@ -76,8 +75,6 @@
 <main>
 	{@render children()}
 </main>
-
-<PlayerSheet />
 
 <style>
 	header {

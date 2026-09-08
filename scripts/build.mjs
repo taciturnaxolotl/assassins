@@ -6,7 +6,8 @@
 //   bun run data:remote     # into the real one
 //
 // Inputs (all read-only, all owned by other projects except data/*.tsv):
-//   data/groupme-roster.tsv        the 99 players, scraped from the group
+//   data/groupme-roster.tsv        everyone in the group, scraped from it
+//   data/reference-photos.tsv      the photos topic, which is also the roll
 //   data/reference-photos.tsv      what each player posted in the photos topic
 //   data/overrides.tsv             manual name -> student id resolutions
 //   data/buildings.tsv             catalog building names -> OpenStreetMap ones
@@ -42,13 +43,99 @@ const tsv = (file) => {
 
 // ─── the players ────────────────────────────────────────────────────────────
 
-const roster = tsv(path.join(ROOT, "data/groupme-roster.tsv"));
+const everyone = tsv(path.join(ROOT, "data/groupme-roster.tsv"));
 
 const refs = new Map();
 for (const r of tsv(path.join(ROOT, "data/reference-photos.tsv"))) {
   if (!refs.has(r.user_id)) refs.set(r.user_id, []);
   refs.get(r.user_id).push(r.url);
 }
+
+// The gallery GroupMe shows when you tap somebody's profile: up to six photos
+// they chose to publish, which is better reference material than one avatar.
+// Optional — the file may not exist yet.
+const galleryFile = path.join(ROOT, "data/profile-photos.tsv");
+const gallery = new Map();
+if (existsSync(galleryFile)) {
+  for (const r of tsv(galleryFile)) {
+    // At least one client has uploaded a `content://` path from its own crop
+    // cache instead of a URL. Anything that is not really an image is dropped
+    // rather than rendered as a broken frame.
+    if (!/^https?:\/\//.test(r.url)) continue;
+    if (!gallery.has(r.user_id)) gallery.set(r.user_id, []);
+    gallery.get(r.user_id).push(r.url);
+  }
+}
+
+// Colour fingerprints from `bun run photos:hash`, used to notice when somebody
+// has posted their profile picture, or a crop of it, as their reference photo.
+// Optional: without the file every photo is kept.
+const hashFile = path.join(ROOT, "data/photo-hashes.tsv");
+const fingerprints = new Map();
+if (existsSync(hashFile)) {
+  for (const r of tsv(hashFile)) {
+    const bins = new Float64Array(512);
+    for (let i = 0; i < 512; i++) bins[i] = parseInt(r.hist.slice(i * 2, i * 2 + 2), 16);
+    fingerprints.set(r.url, bins);
+  }
+}
+
+const cosine = (a, b) => {
+  let dot = 0, x = 0, y = 0;
+  for (let i = 0; i < 512; i++) {
+    dot += a[i] * b[i];
+    x += a[i] * a[i];
+    y += b[i] * b[i];
+  }
+  return x && y ? dot / Math.sqrt(x * y) : 0;
+};
+
+// An identical histogram is the same file re-encoded, and safe to act on alone.
+// Anything short of that is not: measured on this roster, a genuine duplicate
+// (one photo, two crops) and two different frames from the same photoshoot both
+// score 0.974. No threshold separates them, so near matches are proposed by
+// `bun run photos:hash` and confirmed by hand here.
+const IDENTICAL = 0.999;
+
+const dupeFile = path.join(ROOT, "data/photo-dupes.tsv");
+const confirmed = new Set(
+  existsSync(dupeFile)
+    ? tsv(dupeFile).filter((r) => r.verdict === "drop").map((r) => r.url)
+    : [],
+);
+
+/**
+ * Keep the first of each distinct photograph. Order is the argument: what they
+ * posted for this game beats their gallery, which beats an avatar they picked
+ * months ago, which beats a year-old directory shot.
+ */
+function distinct(shots) {
+  const kept = [];
+  for (const shot of shots) {
+    if (!shot) continue;
+    if (confirmed.has(shot.url)) {
+      duplicates++;
+      continue;
+    }
+    const mine = fingerprints.get(shot.url);
+    if (mine && kept.some((k) => {
+      const theirs = fingerprints.get(k.url);
+      return theirs && cosine(mine, theirs) >= IDENTICAL;
+    })) {
+      duplicates++;
+      continue;
+    }
+    kept.push(shot);
+  }
+  return kept;
+}
+let duplicates = 0;
+
+// Being in the group is not being in the game. Posting a reference photo is the
+// entry fee, so the photos topic is the roll: everyone else is a spectator and
+// does not belong in the ring, the search, or anybody's list of targets.
+const roster = everyone.filter((r) => refs.has(r.user_id));
+const spectators = everyone.filter((r) => !refs.has(r.user_id));
 
 const overrides = new Map(
   tsv(path.join(ROOT, "data/overrides.tsv"))
@@ -65,9 +152,13 @@ const rotations = new Map(
 const image = (s) =>
   !s ? null
   : {
-      url: s.startsWith("U")
-        ? `https://m.groupme.com/uploads/${s.slice(1)}`
-        : `https://i.groupme.com/${s.replace(/^I/, "")}`,
+      // The roster stores GroupMe's compact form; the profile galleries were
+      // scraped as whole URLs. Both arrive here, so a URL is left alone.
+      url: /^https?:\/\//.test(s)
+        ? s
+        : s.startsWith("U")
+          ? `https://m.groupme.com/uploads/${s.slice(1)}`
+          : `https://i.groupme.com/${s.replace(/^I/, "")}`,
       rotate: rotations.get(s) ?? 0,
     };
 
@@ -197,6 +288,7 @@ const players = roster.map((r) => {
     name: r.nickname,
     avatar: image(r.image),
     photos: (refs.get(r.user_id) ?? []).map(image),
+    gallery: (gallery.get(r.user_id) ?? []).map(image),
     matched: !!p,
   };
 
@@ -231,6 +323,23 @@ const players = roster.map((r) => {
   return player;
 });
 
+// Somebody's avatar is often the photo they posted, or a crop of it, arriving
+// as a separate upload with its own hash. Only the pixels can tell, so this
+// runs once the player is whole and every source is in hand.
+for (const p of players) {
+  const kept = distinct([
+    ...(p.photos ?? []),
+    ...(p.gallery ?? []),
+    p.avatar,
+    p.directoryPhoto,
+  ]);
+  const has = new Set(kept.map((s) => s.url));
+  p.photos = (p.photos ?? []).filter((s) => has.has(s.url));
+  p.gallery = (p.gallery ?? []).filter((s) => has.has(s.url));
+  if (p.avatar && !has.has(p.avatar.url)) p.avatar = null;
+  if (p.directoryPhoto && !has.has(p.directoryPhoto.url)) p.directoryPhoto = null;
+}
+
 // ─── the campus ─────────────────────────────────────────────────────────────
 
 const labels = tsv(path.join(ROOT, "data/buildings.tsv"));
@@ -262,14 +371,15 @@ const j = (v) => (v == null ? "NULL" : q(JSON.stringify(v)));
 const rows = ["PRAGMA defer_foreign_keys = true;", "DELETE FROM player;", "DELETE FROM dataset;"];
 
 const COLUMNS =
-  "gm_id, name, avatar, photos, matched, candidates, student_id, username, " +
+  "gm_id, name, avatar, photos, gallery, matched, candidates, student_id, username, " +
   "legal_name, class, dorm, room, gender, hometown, directory_photo, majors, schedule";
 
 for (const p of out.players)
   rows.push(
     `INSERT INTO player (${COLUMNS}) VALUES (` +
       [
-        q(p.gmId), q(p.name), j(p.avatar), j(p.photos ?? []), p.matched ? 1 : 0,
+        q(p.gmId), q(p.name), j(p.avatar), j(p.photos ?? []), j(p.gallery ?? []),
+        p.matched ? 1 : 0,
         j(p.candidates ?? null), q(p.id), q(p.username), q(p.legalName), q(p.class),
         q(p.dorm), q(p.room), q(p.gender), q(p.hometown), j(p.directoryPhoto),
         j(p.majors ?? null), j(p.schedule ?? null),
@@ -317,6 +427,15 @@ console.log(
   `campus: ${campus.buildings.length} buildings, ${campus.nodes.length} path nodes, ` +
     `${campus.edges.length} edges, ${Object.keys(campus.anchors).length} anchored` +
     (campus.missing.length ? ` (no location for ${campus.missing.join(", ")})` : ""),
+);
+console.log(
+  `${players.length} playing of ${everyone.length} in the group ` +
+    `(${spectators.length} never posted a reference photo)`,
+);
+console.log(
+  `${players.filter((p) => p.gallery.length).length} with profile galleries ` +
+    `(${players.reduce((n, p) => n + p.gallery.length, 0)} photos)` +
+    (fingerprints.size ? `, ${duplicates} duplicates dropped` : ", no fingerprints yet"),
 );
 console.log(
   `${matched.length}/${players.length} matched \u00b7 ` +

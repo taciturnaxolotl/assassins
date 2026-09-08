@@ -14,23 +14,33 @@
 		options,
 		value = $bindable(''),
 		placeholder = 'Search the roster…',
-		exclude = null
+		exclude = null,
+		extras = [],
+		onpick
 	}: {
 		options: Option[];
 		value?: string;
 		placeholder?: string;
 		exclude?: string | null;
+		/** Rows that are not players: "not known", "killer unknown", and so on. */
+		extras?: { value: string; label: string }[];
+		onpick?: (v: string) => void;
 	} = $props();
 
 	let open = $state(false);
 	let trigger = $state<HTMLButtonElement>(null!);
 
 	const shown = $derived(options.filter((p) => p.gmId !== exclude));
-	const label = $derived(shown.find((p) => p.gmId === value)?.name ?? placeholder);
+	const label = $derived(
+		extras.find((e) => e.value === value)?.label ??
+			shown.find((p) => p.gmId === value)?.name ??
+			placeholder
+	);
 
 	function choose(gmId: string) {
 		value = gmId;
 		open = false;
+		onpick?.(gmId);
 		tick().then(() => trigger?.focus());
 	}
 </script>
@@ -56,6 +66,16 @@
 			<Command.Input placeholder="Type a name…" />
 			<Command.List>
 				<Command.Empty>Nobody by that name.</Command.Empty>
+				{#if extras.length}
+					<Command.Group>
+						{#each extras as e (e.value)}
+							<Command.Item value={e.label} onSelect={() => choose(e.value)}>
+								{e.label}
+							</Command.Item>
+						{/each}
+					</Command.Group>
+					<Command.Separator />
+				{/if}
 				<Command.Group>
 					{#each shown as p (p.gmId)}
 						<Command.Item

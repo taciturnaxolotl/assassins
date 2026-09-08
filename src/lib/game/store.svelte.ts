@@ -46,10 +46,6 @@ export class Game {
 	/** Ticks every half minute so "in class right now" stays true. */
 	now = $state(new Date());
 
-	/** Whoever's dossier is open in the drawer. Every screen opens the same one. */
-	sheet = $state<string | null>(null);
-	show = (id: string) => (this.sheet = id);
-	hide = () => (this.sheet = null);
 
 	constructor(p: Payload) {
 		this.term = p.term;

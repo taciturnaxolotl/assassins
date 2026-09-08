@@ -1,8 +1,9 @@
 <script lang="ts">
 	import Photo from '$lib/components/Photo.svelte';
 	import { Badge } from '$lib/components/ui/badge';
-	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
+	import * as InputGroup from '$lib/components/ui/input-group';
+	import SearchIcon from '@lucide/svelte/icons/search';
 	import { game } from '$lib/game/store.svelte';
 	import { CLASS, place } from '$lib/game/time';
 
@@ -65,11 +66,29 @@
 		return m;
 	});
 
+	/**
+	 * How well someone matches what you typed. A name beats a hometown, and the
+	 * start of a name beats the middle of one, so typing three letters puts the
+	 * person you meant first instead of alphabetically among everyone whose dorm
+	 * happens to contain them.
+	 */
+	function score(gmId: string, name: string) {
+		if (!q) return 1;
+		const n = name.toLowerCase();
+		if (n.startsWith(q)) return 100;
+		if (n.split(/\s+/).some((w) => w.startsWith(q))) return 80;
+		if (n.includes(q)) return 60;
+		const hay = haystack.get(gmId) ?? '';
+		return hay.includes(q) ? 20 : 0;
+	}
+
 	const shown = $derived(
-		g.alphabetical.filter((r) => {
-			for (const f of FILTERS) if (on.has(f.id) && !f.has(r.gmId)) return false;
-			return !q || (haystack.get(r.gmId) ?? '').includes(q);
-		})
+		g.alphabetical
+			.filter((r) => FILTERS.every((f) => !on.has(f.id) || f.has(r.gmId)))
+			.map((r) => ({ r, s: score(r.gmId, r.name) }))
+			.filter((x) => x.s > 0)
+			.sort((a, b) => b.s - a.s || a.r.name.localeCompare(b.r.name))
+			.map((x) => x.r)
 	);
 
 	const toggle = (id: string) => {
@@ -81,13 +100,17 @@
 <svelte:head><title>Roster · Assassins</title></svelte:head>
 
 <div class="controls">
-	<Input
-		class="search"
-		type="search"
-		autocomplete="off"
-		placeholder={g.unlocked ? 'name, dorm, course, hometown…' : 'name…'}
-		oninput={(e) => (q = e.currentTarget.value.trim().toLowerCase())}
-	/>
+	<InputGroup.Root class="search">
+		<InputGroup.Input
+			type="search"
+			autocomplete="off"
+			placeholder={g.unlocked ? 'name, dorm, course, hometown…' : 'name…'}
+			oninput={(e) => (q = e.currentTarget.value.trim().toLowerCase())}
+		/>
+		<InputGroup.Addon>
+			<SearchIcon class="size-4 shrink-0 opacity-50" />
+		</InputGroup.Addon>
+	</InputGroup.Root>
 	<div class="chips">
 		{#each FILTERS as f (f.id)}
 			<Button
@@ -107,13 +130,7 @@
 		{@const gone = g.dead(r.gmId)}
 		{@const mark = g.me ? g.target(g.me) === r.gmId : false}
 		{@const face = r.photos[0] ?? r.avatar}
-		<button
-			class="card"
-			class:gone
-			class:me={g.me === r.gmId}
-			class:mark
-			onclick={() => g.show(r.gmId)}
-		>
+		<a class="card" class:gone class:me={g.me === r.gmId} class:mark href="/player/{r.gmId}">
 			{#if face}
 				<Photo shot={face} class="shot" />
 			{:else}
@@ -150,11 +167,15 @@
 					<div class="loc">next: {g.next(p)}</div>
 				{/if}
 			</div>
-		</button>
+		</a>
 	{:else}
 		<p class="empty">Nobody matches that.</p>
 	{/each}
 </div>
+
+{#if q || on.size}
+	<p class="legal count">{shown.length} of {g.roster.length}</p>
+{/if}
 
 <style>
 	.controls {
@@ -168,6 +189,9 @@
 		flex: 1 1 260px;
 		max-width: 420px;
 	}
+	.count {
+		margin-top: 14px;
+	}
 
 	.grid {
 		display: grid;
@@ -176,6 +200,7 @@
 	}
 
 	.card {
+		display: block;
 		position: relative;
 		background: var(--color-panel);
 		border: 1px solid var(--color-line);

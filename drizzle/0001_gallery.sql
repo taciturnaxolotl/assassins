@@ -1,0 +1,1 @@
+ALTER TABLE `player` ADD `gallery` text DEFAULT '[]' NOT NULL;

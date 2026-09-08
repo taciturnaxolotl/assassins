@@ -23,11 +23,27 @@
 	let err = $state('');
 	let busy = $state(false);
 
+	// Three sources, and it matters which is which: the photo they posted is
+	// how they look now and chose to be seen, the profile picture is whatever
+	// they picked months ago, and the directory shot is a year old and official.
 	const shots = $derived(
-		[...player.photos, player.avatar, player.directoryPhoto].filter(Boolean)
+		[
+			...player.photos.map((s) => ({ shot: s, from: 'posted' })),
+			...(player.avatar ? [{ shot: player.avatar, from: 'profile' }] : []),
+			...(player.gallery ?? []).map((s) => ({ shot: s, from: 'gallery' })),
+			...(player.directoryPhoto ? [{ shot: player.directoryPhoto, from: 'directory' }] : [])
+		]
 	);
 	const isMe = $derived(player.gmId === g.me);
 	const canRoute = $derived(!!g.walker && g.walker.plan(g.slots, player, day).located.length > 0);
+
+	// Only set once the ring has routed around somebody: their live target is
+	// no longer the one they drew.
+	const inherited = $derived.by(() => {
+		if (!g.seesRing) return null;
+		const live = g.target(player.gmId);
+		return live && live !== g.chain.assigned[player.gmId] ? live : null;
+	});
 
 	const vitals = $derived(
 		[
@@ -63,7 +79,12 @@
 	<div class="head">
 		{#if shots.length}
 			<div class="reel">
-				{#each shots as s, i (i)}<Photo shot={s!} class="still" />{/each}
+				{#each shots as s, i (i)}
+					<figure class="frame">
+						<Photo shot={s.shot} class="still" />
+						<figcaption>{s.from}</figcaption>
+					</figure>
+				{/each}
 			</div>
 		{/if}
 
@@ -140,16 +161,14 @@
 				{/if}
 
 				{#if g.seesRing}
-					<dt>Now hunting</dt>
-					<dd>
-						{#if g.target(player.gmId)}
-							<Who id={g.target(player.gmId)} />
-						{:else}
-							<span class="faint">
-								{g.dead(player.gmId) ? 'out of the game' : 'unknown'}
-							</span>
-						{/if}
-					</dd>
+					<!-- Assigned is the edge they reported; this is that edge walked
+					     forward past whoever has died since. They agree until an
+					     inheritance happens, so it only earns a row when they differ
+					     — which is exactly when it is worth reading. -->
+					{#if inherited}
+						<dt>Inherited</dt>
+						<dd><Who id={inherited} /></dd>
+					{/if}
 
 					<dt>Hunted by</dt>
 					<dd>
@@ -257,12 +276,22 @@
 		margin: 16px 0;
 		padding-bottom: 4px;
 	}
-	.reel :global(.still) {
+	.frame {
 		flex: 0 0 auto;
+		margin: 0;
+	}
+	.reel :global(.still) {
 		height: 220px;
 		aspect-ratio: 3 / 4;
 		border-radius: 2px;
 		border: 1px solid var(--color-line);
+	}
+	.frame figcaption {
+		margin-top: 4px;
+		font-size: 9px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--color-faint);
 	}
 	.dossier.wide .reel {
 		margin-top: 0;
