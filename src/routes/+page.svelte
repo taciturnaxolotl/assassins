@@ -20,7 +20,7 @@
 				players: data.demo ? [data.demo] : [],
 				campus: data.campus,
 				roster: [],
-				chain: { assigned: {}, kills: {}, myTarget: null, claimedKill: null, full: false },
+				chain: { assigned: {}, kills: {}, myTarget: null, claimedKill: null, won: false, full: false },
 				notes: {},
 				me: null,
 				isAdmin: false,

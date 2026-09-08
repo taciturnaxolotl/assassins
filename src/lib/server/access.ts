@@ -13,10 +13,17 @@ export type Account = {
 	username: string | null;
 	role: string;
 	plan: string;
+	/** When paid access runs out. Null means it does not. */
+	planUntil?: Date | null;
 };
 
 export type Access = {
 	user: Account | null;
+	/**
+	 * The admin behind an impersonated session. Null when nobody is pretending.
+	 * `user` is who the app answers as; this is who is actually here.
+	 */
+	realUser?: Account | null;
 	tier: Tier;
 	/** The player this account has been approved as. Null for a free agent. */
 	gmId: string | null;
@@ -24,16 +31,32 @@ export type Access = {
 	isFreeAgent: boolean;
 	claim: typeof schema.claim.$inferSelect | null;
 	isAdmin: boolean;
+	/** An impersonated session has been explicitly armed to write. */
+	spoofWrite?: boolean;
 };
 
 export const ANON: Access = {
 	user: null,
+	realUser: null,
 	tier: 'anon',
 	gmId: null,
 	claim: null,
 	isAdmin: false,
 	isFreeAgent: false
 };
+
+/** Somebody is wearing another account's session. */
+export const isSpoofing = (a: Access) => !!a.realUser && a.realUser.id !== a.user?.id;
+
+/**
+ * Impersonation looks, unless you say otherwise.
+ *
+ * Writing while wearing somebody else's session puts their name on a kill they
+ * never claimed or a draw they never filed, and `reportedBy` records it as
+ * theirs. That is sometimes exactly what you want — fixing a player's mistake
+ * for them — but never by accident, so it is off until armed from the banner.
+ */
+export const mayWrite = (a: Access) => !isSpoofing(a) || !!a.spoofWrite;
 
 export async function accessFor(db: DB, user: Account | null): Promise<Access> {
 	if (!user) return ANON;
@@ -66,9 +89,17 @@ export async function accessFor(db: DB, user: Account | null): Promise<Access> {
 		gmId: claim.gmId,
 		isFreeAgent: !claim.gmId,
 		// There is no point charging yourself to read your own approval queue.
-		tier: isAdmin || user.plan === 'pro' ? 'pro' : 'free'
+		tier: isAdmin || isPaid(user) ? 'pro' : 'free'
 	};
 }
+
+/**
+ * Paid up right now. The date matters: a one-off purchase can be stamped with
+ * the end of the game, and without checking it a lapsed account would read as
+ * paid forever.
+ */
+const isPaid = (user: Account) =>
+	user.plan === 'pro' && (!user.planUntil || user.planUntil.getTime() > Date.now());
 
 /** Tiers that may file their own edges of the ring. */
 export const isPlayer = (t: Tier) => t === 'pending' || t === 'free' || t === 'pro';
