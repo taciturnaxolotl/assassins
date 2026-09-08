@@ -1,7 +1,7 @@
 // Every move on the board, with the rules about who may make it in one place.
 
 import { error, json } from '@sveltejs/kit';
-import { isPlayer } from '$lib/server/access';
+import { isPlayer, mayWrite } from '$lib/server/access';
 import {
 	acceptBid,
 	board,
@@ -16,6 +16,7 @@ import type { RequestHandler } from './$types';
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { access, db } = locals;
 	if (!access.user || !isPlayer(access.tier)) error(403, 'Not in the game.');
+	if (!mayWrite(access)) error(403, 'You are looking at somebody else\'s session.');
 
 	// A free agent has no gmId. They may bid on anything and post nothing,
 	// because posting is putting a price on the person you are hunting.

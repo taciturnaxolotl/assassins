@@ -197,12 +197,27 @@
 				<summary>
 					Not signed in — {data.unclaimed.length} of {data.state.players}
 				</summary>
-				<p class="legal">On the roster, nobody has claimed them. These are who to chase.</p>
-				<div class="names">
-					{#each data.unclaimed as p (p.gmId)}
-						<a href="/player/{p.gmId}" class:unknown={!p.matched}>{p.name}</a>
-					{/each}
-				</div>
+				<p class="legal">
+					On the roster, nobody has claimed them. These are who to chase — or
+					step into, which makes the account they would have had. They keep it
+					when they sign in.
+				</p>
+				<table class="sheet">
+					<tbody>
+						{#each data.unclaimed as p (p.gmId)}
+							<tr>
+								<td><a href="/player/{p.gmId}" class:unknown={!p.matched}>{p.name}</a></td>
+								<td class="legal">{p.matched ? '' : 'unidentified'}</td>
+								<td class="right">
+									<form method="POST" action="/admin/spoof">
+										<input type="hidden" name="gmId" value={p.gmId} />
+										<Button size="sm" variant="ghost" type="submit">View as</Button>
+									</form>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
 			</details>
 		</section>
 	{/if}
@@ -439,21 +454,17 @@
 		color: var(--color-faint);
 		padding-bottom: 8px;
 	}
-	.names {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 4px 14px;
-		margin-top: 10px;
-	}
-	.names a {
+	.sheet a {
 		color: var(--color-dim);
-		font-size: 12px;
 	}
-	.names a:hover {
+	.sheet a:hover {
 		color: var(--color-blood);
 	}
-	.names a.unknown {
+	.sheet a.unknown {
 		color: var(--color-warn);
+	}
+	td.right {
+		text-align: right;
 	}
 
 	.sheet td form {

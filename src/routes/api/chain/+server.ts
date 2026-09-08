@@ -7,12 +7,13 @@
 
 import { error, json } from '@sveltejs/kit';
 import { chainFor, clearKill, killRow, setAssignment, setKill } from '$lib/server/game';
-import { isPlayer } from '$lib/server/access';
+import { isPlayer, mayWrite } from '$lib/server/access';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { access, db } = locals;
 	if (!access.user || !isPlayer(access.tier) || !access.gmId) error(403, 'Not in the game.');
+	if (!mayWrite(access)) error(403, 'You are looking at somebody else\'s session.');
 
 	const body = (await request.json()) as {
 		action: string;

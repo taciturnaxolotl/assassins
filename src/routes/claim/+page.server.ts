@@ -2,7 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { schema } from '$lib/server/db';
 import { exists, meta, suggestFor } from '$lib/server/data';
-import { landingFor } from '$lib/server/access';
+import { landingFor, mayWrite } from '$lib/server/access';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -49,6 +49,7 @@ export const actions: Actions = {
 	default: async ({ request, locals }) => {
 		const { access, db } = locals;
 		if (!access.user || access.tier !== 'unclaimed') redirect(303, '/');
+		if (!mayWrite(access)) return fail(403, { message: 'You are viewing as somebody else.' });
 
 		const form = await request.formData();
 		const pitch = String(form.get('pitch') ?? '').slice(0, 500);

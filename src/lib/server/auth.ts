@@ -12,6 +12,7 @@
 import { eq, lt } from 'drizzle-orm';
 import type { DB } from './db';
 import { schema } from './db';
+import { seatFor } from './placeholder';
 
 export const CAMPUS_DOMAIN = 'cedarville.edu';
 export const SESSION_COOKIE = 'assassins_session';
@@ -187,6 +188,26 @@ export async function upsertUser(db: DB, env: Env, who: GoogleIdentity) {
 		.from(schema.user)
 		.where(eq(schema.user.googleSub, who.sub))
 		.limit(1);
+
+	// Somebody may have been impersonated before ever signing in, which leaves a
+	// real account already approved as them. That is their seat: take it, rather
+	// than opening a second one and leaving the claim stranded on the first.
+	const held = existing ? null : await seatFor(db, username, who.email);
+	if (held) {
+		await db
+			.update(schema.user)
+			.set({
+				googleSub: who.sub,
+				name: who.name,
+				email: who.email,
+				image: who.picture,
+				username,
+				...(isAdminName(env, username) ? { role: 'admin' } : {}),
+				updatedAt: now
+			})
+			.where(eq(schema.user.id, held.id));
+		return held.id;
+	}
 
 	if (existing) {
 		// A name or a photo can change between terms; the role should not be
