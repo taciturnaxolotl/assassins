@@ -340,6 +340,27 @@
 		flex: 1;
 	}
 
+	.sealed {
+		font-size: 13px;
+		line-height: 1.6;
+		color: var(--color-warn);
+		margin: 22px 0 20px;
+	}
+	.buy {
+		margin-bottom: 18px;
+	}
+
+	/* The shape of the file with none of its contents. Unreachable as well as
+	   unreadable, so nothing invented can be clicked, selected or copied. */
+	.frosted {
+		/* Enough to make it unreadable, not so much that you cannot tell what
+		   you would be getting. */
+		filter: blur(3.5px) saturate(0.8);
+		opacity: 0.8;
+		pointer-events: none;
+		user-select: none;
+	}
+
 	dl.vitals {
 		display: grid;
 		grid-template-columns: 92px 1fr;
