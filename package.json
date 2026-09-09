@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "data": "bun scripts/build.mjs",
-    "data:remote": "bun scripts/build.mjs --remote",
+    "data:remote": "CLOUDFLARE_ACCOUNT_ID=fdbe5b542ede643d34962c1f07a34565 bun scripts/build.mjs --remote",
     "galleries": "bun scripts/fetch-galleries.mjs",
     "photos:hash": "bun scripts/hash-photos.mjs",
     "og": "bun scripts/og-image.mjs",
