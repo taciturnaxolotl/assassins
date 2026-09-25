@@ -194,15 +194,34 @@ export async function meta(db: DB) {
 }
 
 // The campus is stored as its parts, because D1 refuses a statement much past
-// 50 KB and the whole graph is twice that. They are separate arrays that only
-// ever travel together, so one query puts them back.
+// 50 KB and the whole graph is four times that. A part too big even on its own
+// — the path nodes, the edges — is split further into `campus.nodes#0`,
+// `campus.nodes#1`, each holding a slice of the encoded JSON as a string. One
+// query puts all of it back.
 export async function campus(db: DB): Promise<Campus | null> {
 	const rows = await db
 		.select()
 		.from(schema.dataset)
 		.where(like(schema.dataset.key, 'campus.%'));
 	if (!rows.length) return null;
-	const parts = Object.fromEntries(rows.map((r) => [r.key.slice('campus.'.length), r.value]));
+
+	const parts: Record<string, unknown> = {};
+	const chunks = new Map<string, string[]>();
+	for (const r of rows) {
+		const name = r.key.slice('campus.'.length);
+		const hash = name.indexOf('#');
+		if (hash < 0) {
+			parts[name] = r.value;
+			continue;
+		}
+		const [base, index] = [name.slice(0, hash), Number(name.slice(hash + 1))];
+		if (!chunks.has(base)) chunks.set(base, []);
+		chunks.get(base)![index] = r.value as string;
+	}
+	// Written in order but read in whatever order the query returns, so the
+	// index in the key is the only thing that knows how to reassemble them.
+	for (const [base, slices] of chunks) parts[base] = JSON.parse(slices.join(''));
+
 	return parts as unknown as Campus;
 }
 

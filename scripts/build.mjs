@@ -5,31 +5,32 @@
 //   bun run data            # into the local database
 //   bun run data:remote     # into the real one
 //
-// Inputs (all read-only, all owned by other projects except data/*.tsv):
+// Who each player is comes from cedarengine, which is the directory, the course
+// catalog, the harvested booklists and the campus map already joined and
+// answering over the tailnet. This script used to open three sibling repos by
+// absolute path to assemble the same thing, and a build could only run on a
+// machine where all four were checked out at once.
+//
+// What is left here is everything cedarengine cannot know: who is in the group,
+// who posted a reference photo, which of two Grace Andersons somebody is, and
+// which photographs are the same face twice.
+//
+// Local inputs:
 //   data/groupme-roster.tsv        everyone in the group, scraped from it
-//   data/reference-photos.tsv      the photos topic, which is also the roll
-//   data/reference-photos.tsv      what each player posted in the photos topic
+//   data/reference-photos.tsv      what each player posted in the photos topic,
+//                                  which is also the roll
+//   data/profile-photos.tsv        their GroupMe galleries
+//   data/directory-photos.json     directory headshots, mirrored off SSO
 //   data/overrides.tsv             manual name -> student id resolutions
-//   data/buildings.tsv             catalog building names -> OpenStreetMap ones
-//   data/campus.osm.json           the campus, from `bun scripts/fetch-map.mjs`
-//   data/tour-buildings.json       halls OSM lacks, from `bun scripts/pin-buildings.mjs`
-//   cedarstalk-raycast/data        the directory: dorm, room, class, hometown
-//   cedar-major-pipeline/data      booklists, which leak each player's sections
-//   the-cedarville-app/.data       the catalog: when and where those meet
+//   data/photo-{hashes,dupes,fixes}.tsv   the deduplication apparatus
 
-import { Database } from "bun:sqlite";
 import { existsSync, readFileSync } from "fs";
 import { unlink } from "fs/promises";
 import * as os from "os";
 import * as path from "path";
-import { buildMap } from "./map.mjs";
-import { buildModel } from "../../cedar-major-pipeline/lib.mjs";
-import { PROGRAMS_JSON } from "../../cedar-major-pipeline/config.mjs";
+import { campusMap, directory, get, pool } from "./engine.mjs";
 
 const ROOT = path.join(import.meta.dir, "..");
-const STALK = path.join(ROOT, "../cedarstalk-raycast/data");
-const PIPE = path.join(ROOT, "../cedar-major-pipeline/data");
-const CATALOG = path.join(ROOT, "../the-cedarville-app/.data/catalog.sqlite");
 const TERM = "2026FA";
 
 const norm = (s) => (s ?? "").toLowerCase().normalize("NFD").replace(/[^a-z]/g, "");
@@ -190,16 +191,17 @@ const image = (s) =>
 
 // ─── the directory ──────────────────────────────────────────────────────────
 
-const dir = new Database(path.join(STALK, "directory.db"), { readonly: true });
-const people = dir.query("SELECT * FROM people").all();
-const byId = new Map(people.map((p) => [String(p.Id), p]));
+// Both are one request and neither depends on the other, so they go together.
+const [people, campus] = await Promise.all([directory(), campusMap()]);
+
+const byId = new Map(people.map((p) => [p.id, p]));
 
 const byName = new Map();
 for (const p of people) {
-  for (const first of [p.FirstName, p.Nickname].filter(Boolean)) {
-    const k = norm(first + p.LastName);
+  for (const first of [p.firstName, p.nickname].filter(Boolean)) {
+    const k = norm(first + p.lastName);
     if (!byName.has(k)) byName.set(k, new Map());
-    byName.get(k).set(String(p.Id), p);
+    byName.get(k).set(p.id, p);
   }
 }
 const lookup = (name) => {
@@ -217,12 +219,12 @@ const lookup = (name) => {
 // For names the directory can't resolve ("Kylie", "CJ Williams"), offer the
 // enrolled undergrads any token of the name could point at. Ranked, not chosen —
 // picking between them takes a face, so it goes in overrides.tsv by hand.
-const enrolled = people.filter((p) => ["FR", "SO", "JR", "SR"].includes(p.StudentClass));
+const enrolled = people.filter((p) => ["FR", "SO", "JR", "SR"].includes(p.studentClass));
 const suggest = (name) => {
   const toks = name.split(/\s+/).map(norm).filter(Boolean);
   return enrolled
     .map((p) => {
-      const [fn, ln, nk] = [norm(p.FirstName), norm(p.LastName), norm(p.Nickname)];
+      const [fn, ln, nk] = [norm(p.firstName), norm(p.lastName), norm(p.nickname)];
       let score = 0;
       for (const t of toks) {
         if (ln === t) score += 3;
@@ -238,77 +240,105 @@ const suggest = (name) => {
     .map((x) => x.p);
 };
 
-// students.tsv carries hometown and gender, which the directory doesn't.
-const extra = new Map();
-for (const s of tsv(path.join(STALK, "students.tsv"))) {
-  extra.set(norm(s["First Name"] + s["Last Name"]), s);
-}
+// The directory's photographs sit behind SSO, so its own `photoUrl` is a path
+// nothing outside Cedarville can fetch. These are the ones already mirrored out
+// to l4, by student id.
+const mirrored = JSON.parse(readFileSync(path.join(ROOT, "data/directory-photos.json"), "utf8"));
 
-const mirrored = JSON.parse(readFileSync(path.join(STALK, "photos.json"), "utf8"));
-
+// Which halls are men's and which are women's, off the campus map rather than a
+// scraped list. This is a hall's gender, not a person's — the directory has
+// never carried that — so it answers for the three and a half thousand students
+// who live on campus and says nothing about anybody who commutes.
 const dormGender = new Map(
-  tsv(path.join(STALK, "dorm-gender.tsv")).map((d) => [d.Dorm, d.Gender]),
+  Object.entries(campus.anchors)
+    .filter(([, a]) => a.gender)
+    .map(([label, a]) => [label, a.gender]),
 );
 
-// ─── schedules ──────────────────────────────────────────────────────────────
+// ─── schedules and majors ───────────────────────────────────────────────────
 
-// The campus store's per-student booklist names the exact sections they're in.
-const sectionsOf = new Map();
-const harvest = JSON.parse(readFileSync(path.join(PIPE, `harvests/${TERM}.json`), "utf8"));
-for (const row of harvest) {
-  const set = new Set();
-  for (const b of row.books ?? []) {
-    const dept = (b.department ?? "").split("-")[0];
-    const course = (b.course ?? "").split("-")[0];
-    const sec = (b.section ?? "").split("-")[0];
-    if (dept && course && sec) set.add(`${dept}-${course}-${sec}`);
-  }
-  if (set.size) sectionsOf.set(String(row.id), set);
-}
-
-const cat = new Database(CATALOG, { readonly: true });
-const meetings = new Map();
-for (const { payload } of cat.query("SELECT payload FROM sections WHERE term = ?").all(TERM)) {
-  const s = JSON.parse(payload);
-  meetings.set(s.SectionNameDisplay, {
-    code: s.CourseName,
-    section: s.SectionNameDisplay,
-    title: s.SectionTitleDisplay,
-    credits: s.MinimumCredits,
-    instructor: (s.FacultyDisplay ?? [])[0] ?? null,
-    enrolled: s.Enrolled,
-    capacity: s.Capacity,
-    meets: (s.FormattedMeetingTimes ?? []).map((m) => ({
-      days: m.Days ?? [],
-      start: m.StartTimeDisplay || null,
-      end: m.EndTimeDisplay || null,
-      building: m.BuildingDisplay || null,
-      room: m.RoomDisplay || null,
-      online: !!m.IsOnline,
-      kind: m.InstructionalMethodDisplay || null,
-    })),
-  });
-}
-
-// ─── majors ─────────────────────────────────────────────────────────────────
-
-const model = buildModel(PROGRAMS_JSON);
-const majorGuess = (sections) => {
-  const courses = new Set([...sections].map((s) => s.split("-").slice(0, 2).join("-")));
-  if (!courses.size) return [];
-  return model
-    .guess(courses)
-    .ranked.slice(0, 3)
-    .map((g) => ({ major: g.title, score: Math.round(g.score * 100) }));
+// cedarengine keeps time as "13:00", which is the right way to store it and the
+// wrong way to read one. Everything downstream parses the clock the way a
+// timetable on a wall prints it, so it is converted once, here.
+const clock = (t) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t ?? "");
+  if (!m) return null;
+  const h = +m[1];
+  return `${h % 12 || 12}:${m[2]} ${h < 12 ? "AM" : "PM"}`;
 };
+
+// One section, as the game reads it. Colleague lists co-taught courses as one
+// comma-joined string; the dossier has room for a name, not a faculty roster.
+const course = (s) => ({
+  code: s.code ?? s.name.split("-").slice(0, 2).join("-"),
+  section: s.name,
+  title: s.title,
+  credits: s.credits ?? undefined,
+  instructor: (s.faculty ?? "").split(",")[0] || null,
+  meets: (s.meetings ?? []).map((m) => ({
+    days: m.days ?? [],
+    start: clock(m.start),
+    end: clock(m.end),
+    building: m.building,
+    room: m.room,
+    online: !!m.online,
+    kind: m.kind,
+  })),
+});
+
+/**
+ * What the engine knows about one student: their week and their likely major.
+ *
+ * A student with no harvested booklist is a 404 on both, which is an answer —
+ * they get Chapel and nothing else, the same as before.
+ */
+async function dossier(id) {
+  const [schedule, major] = await Promise.all([
+    get(`/v1/people/${id}/schedule?term=${TERM}`, { allow404: true }),
+    get(`/v1/people/${id}/major?top=3`, { allow404: true }),
+  ]);
+
+  const sections = [
+    ...(schedule?.sections ?? []),
+    // Online sections meet nobody anywhere, which is worth knowing when the
+    // gap they leave in a day looks like a chance.
+    ...(schedule?.online ?? []),
+  ].map(course);
+
+  // A section the booklist named and the catalog has never heard of. It says
+  // the course exists without saying when, which is still a course they are in.
+  for (const name of schedule?.unmatched ?? []) {
+    sections.push({
+      code: name.split("-").slice(0, 2).join("-"),
+      section: name,
+      title: null,
+      meets: [],
+    });
+  }
+
+  return {
+    schedule: sections.sort((a, b) => a.section.localeCompare(b.section)),
+    majors: (major?.guesses ?? []).map((g) => ({
+      major: g.title,
+      score: Math.round(g.score * 100),
+    })),
+  };
+}
 
 // ─── join ───────────────────────────────────────────────────────────────────
 
-const players = roster.map((r) => {
+// Resolve everybody first, then ask about the ones who resolved. Each question
+// is a network hop now, so asking them in a `map` would be eighty round trips
+// taken one at a time.
+const resolved = roster.map((r) => {
   const candidates = lookup(r.nickname);
   const forced = overrides.get(r.user_id);
-  const p = forced ? byId.get(forced) : candidates.length === 1 ? candidates[0] : null;
+  return { r, candidates, p: forced ? byId.get(forced) : candidates.length === 1 ? candidates[0] : null };
+});
 
+const files = await pool(resolved, 8, ({ p }) => (p ? dossier(p.id) : null));
+
+const players = resolved.map(({ r, candidates, p }, i) => {
   const player = {
     gmId: r.user_id,
     name: r.nickname,
@@ -321,34 +351,26 @@ const players = roster.map((r) => {
   if (!p) {
     player.schedule = [CHAPEL];
     player.candidates = (candidates.length ? candidates : suggest(r.nickname)).map((c) => ({
-      id: String(c.Id),
-      name: `${c.Nickname || c.FirstName} ${c.LastName}`,
-      class: c.StudentClass,
-      dorm: [c.DormName, c.DormRoom].filter(Boolean).join(" "),
+      id: c.id,
+      name: `${c.nickname || c.firstName} ${c.lastName}`,
+      class: c.studentClass,
+      dorm: [c.dormName, c.dormRoom].filter(Boolean).join(" "),
     }));
     return player;
   }
 
-  const e = extra.get(norm(p.FirstName + p.LastName)) ?? extra.get(norm((p.Nickname ?? "") + p.LastName));
-  const sections = sectionsOf.get(String(p.Id)) ?? new Set();
-
   Object.assign(player, {
-    id: String(p.Id),
-    username: p.Username || null,
-    legalName: [p.FirstName, p.MiddleName, p.LastName].filter(Boolean).join(" "),
-    class: p.StudentClass,
-    dorm: p.DormName,
-    room: p.DormRoom,
-    gender: e?.Gender ?? dormGender.get(p.DormName) ?? null,
-    hometown: e ? [e.Hometown, e.State].filter(Boolean).join(", ") : null,
-    directoryPhoto: mirrored[String(p.Id)] ? { url: mirrored[String(p.Id)], rotate: 0 } : null,
-    majors: majorGuess(sections),
-    schedule: [
-      CHAPEL,
-      ...[...sections]
-        .map((s) => meetings.get(s) ?? { code: s.split("-").slice(0, 2).join("-"), section: s, title: null, meets: [] })
-        .sort((a, b) => a.section.localeCompare(b.section)),
-    ],
+    id: p.id,
+    username: p.username || null,
+    legalName: [p.firstName, p.middleName, p.lastName].filter(Boolean).join(" "),
+    class: p.studentClass,
+    dorm: p.dormName,
+    room: p.dormRoom,
+    gender: dormGender.get(p.dormName) ?? null,
+    hometown: [p.city, p.state].filter(Boolean).join(", ") || null,
+    directoryPhoto: mirrored[p.id] ? { url: mirrored[p.id], rotate: 0 } : null,
+    majors: files[i].majors,
+    schedule: [CHAPEL, ...files[i].schedule],
   });
   return player;
 });
@@ -371,13 +393,13 @@ for (const p of players) {
 }
 
 // ─── the campus ─────────────────────────────────────────────────────────────
-
-const labels = tsv(path.join(ROOT, "data/buildings.tsv"));
-// Outlines for the halls OSM never mapped, lifted from Cedarville's own campus
-// tour by scripts/pin-buildings.mjs.
-const tourFile = path.join(ROOT, "data/tour-buildings.json");
-const tour = existsSync(tourFile) ? JSON.parse(readFileSync(tourFile, "utf8")).buildings : {};
-const campus = buildMap(path.join(ROOT, "data/campus.osm.json"), labels, tour);
+//
+// Fetched at the top, alongside the directory. It used to be built here out of
+// a cached Overpass extract and a scrape of Cedarville's campus tour, which is
+// the same work cedarengine now does for everybody — and does better, since it
+// also carries the College View blocks, Cedar Park and the operations yard,
+// pinned off the university's printed map. Three hundred people live inside
+// the ground that extract left out.
 
 const matched = players.filter((p) => p.matched);
 
@@ -416,9 +438,18 @@ for (const p of out.players)
       ].join(", ") + ");",
   );
 
-// D1 refuses a statement much past 50 KB, and the campus as one blob is twice
-// that. Its parts are separate arrays that only travel together, so they store
-// that way and `campus()` puts them back.
+// D1 refuses a statement much past 50 KB. The campus has always been stored as
+// its parts for that reason, but cedarengine's graph covers more ground than
+// the old Overpass extract did — 4,659 path nodes against the handful of
+// streets around the academic core — and `nodes` and `edges` are each over the
+// limit on their own now.
+//
+// So a part that does not fit is written as a run of numbered chunks of its
+// JSON text: `campus.nodes#0`, `campus.nodes#1`. Splitting the encoded string
+// rather than the array means this knows nothing about what it is storing and
+// cannot be wrong about a shape it has never seen. `campus()` joins them back.
+const CHUNK = 40_000;
+
 const facts = {
   term: out.term,
   group: out.group,
@@ -431,8 +462,23 @@ const facts = {
   "campus.missing": campus.missing,
 };
 const stamp = Math.floor(Date.parse(out.builtAt) / 1000);
-for (const [key, value] of Object.entries(facts))
-  rows.push(`INSERT INTO dataset (key, value, built_at) VALUES (${q(key)}, ${j(value)}, ${stamp});`);
+const put = (key, value) =>
+  rows.push(`INSERT INTO dataset (key, value, built_at) VALUES (${q(key)}, ${value}, ${stamp});`);
+
+let chunked = 0;
+for (const [key, value] of Object.entries(facts)) {
+  const text = JSON.stringify(value);
+  if (text.length <= CHUNK) {
+    put(key, j(value));
+    continue;
+  }
+  // Each chunk is stored as a JSON string, so every row is still valid JSON on
+  // its own and the column can stay in json mode.
+  for (let i = 0, n = 0; i < text.length; i += CHUNK, n++) {
+    put(`${key}#${n}`, j(text.slice(i, i + CHUNK)));
+    chunked++;
+  }
+}
 
 const oversized = rows.filter((r) => r.length > 50_000);
 if (oversized.length) {

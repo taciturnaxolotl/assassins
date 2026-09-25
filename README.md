@@ -6,16 +6,20 @@ the ultimate platform for running games of assassin
 
 ```
 bun install
-bun scripts/fetch-map.mjs               # once — caches the campus from OSM
-bun scripts/pin-buildings.mjs --write   # once — the halls OSM is missing
-
 bunx wrangler d1 create assassins       # put the id in wrangler.jsonc
 bun run db:migrate                      # tables, locally
-bun run data                            # the join -> local D1
 
-cp .env.example .env               # fill in Google, and Polar if you want it
+cp .env.example .env                    # Google, GroupMe, and cedarengine
+bun run data                            # the join -> local D1
 bun run dev                             # http://localhost:5173
 ```
+
+`bun run data` asks [cedarengine](https://github.com/taciturnaxolotl/cedarengine)
+who each player is: the directory for their room and class, harvested booklists
+for the sections they are in, the catalog for when and where those meet, and the
+campus they walk across. Everything cedarengine cannot know — who is in the
+group, who posted a reference photo, which of two Grace Andersons somebody is —
+stays in `data/`.
 
 Deploying:
 
